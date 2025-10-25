@@ -1,19 +1,31 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Inicializar o cliente Gemini
-const apiKey = process.env.GEMINI_API_KEY;
+// Função para obter a API Key
+const getApiKey = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('GEMINI_API_KEY não encontrada nas variáveis de ambiente');
+    throw new Error('GEMINI_API_KEY não configurada. Verifique o arquivo .env.local');
+  }
+  return apiKey;
+};
 
-if (!apiKey) {
-  throw new Error('GEMINI_API_KEY não configurada nas variáveis de ambiente');
-}
+// Inicializar o cliente Gemini de forma lazy
+let genAI: GoogleGenerativeAI | null = null;
 
-const genAI = new GoogleGenerativeAI(apiKey);
+const getGenAI = () => {
+  if (!genAI) {
+    genAI = new GoogleGenerativeAI(getApiKey());
+  }
+  return genAI;
+};
 
 /**
  * Configuração do modelo Gemini Pro
  */
 export const getGeminiModel = () => {
-  return genAI.getGenerativeModel({
+  const client = getGenAI();
+  return client.getGenerativeModel({
     model: 'gemini-pro',
     generationConfig: {
       temperature: 0.7, // Criatividade moderada
@@ -21,24 +33,6 @@ export const getGeminiModel = () => {
       topP: 0.95,
       maxOutputTokens: 2048,
     },
-    safetySettings: [
-      {
-        category: 'HARM_CATEGORY_HARASSMENT',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-      {
-        category: 'HARM_CATEGORY_HATE_SPEECH',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-      {
-        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-      {
-        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
-      },
-    ],
   });
 };
 
