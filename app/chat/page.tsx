@@ -200,54 +200,9 @@ export default function ChatPage() {
 
       const identificacaoData = await identificacaoResponse.json();
 
-      // Sempre buscar recomendações da IA, independente de ter identificado peças
-      const promptResponse = await fetch('/api/prompts/recomendacao');
-      const promptData = await promptResponse.json();
-      
-      let systemPrompt = '';
-      
-      if (promptData.success) {
-        systemPrompt = promptData.data.ConteudoPrompt;
-        systemPrompt = systemPrompt.replace(/\{\{nome_cliente\}\}/g, name);
-        systemPrompt = systemPrompt.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteSelecionado?.Nome || '');
-        systemPrompt = systemPrompt.replace(/\{\{modelo_veiculo\}\}/g, modeloSelecionado?.Nome || '');
-        systemPrompt = systemPrompt.replace(/\{\{problema_cliente\}\}/g, text);
-        systemPrompt = systemPrompt.replace(/\{\{categoria_interesse\}\}/g, text);
-      } else {
-        systemPrompt = `Você é um assistente especializado em peças automotivas.
-O cliente ${name} possui um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}.
-Ajude com: ${text}`;
-      }
-
-      // Enviar para Gemini para recomendações detalhadas
-      const aiResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: systemPrompt,
-          message: text
-        })
-      });
-
-      const aiData = await aiResponse.json();
-
-      if (aiData.success) {
-        // Adicionar informação sobre peças identificadas
-        let resposta = aiData.response;
-        
-        if (identificacaoData.success && identificacaoData.identificado && identificacaoData.pecas && identificacaoData.pecas.length > 0) {
-          resposta += `\n\n📋 **Peças identificadas e registradas:**\n`;
-          identificacaoData.pecas.forEach((peca: any) => {
-            resposta += `• ${peca.NomePeca}`;
-            if (peca.DescricaoProblema) {
-              resposta += ` (${peca.DescricaoProblema})`;
-            }
-            resposta += `\n`;
-          });
-          resposta += `\n💡 Essas peças foram salvas e você pode consultá-las depois!`;
-        }
-        
-        addAssistant(resposta);
+      // Usar a resposta completa da IA de identificação
+      if (identificacaoData.success && identificacaoData.respostaCompleta) {
+        addAssistant(identificacaoData.respostaCompleta);
       } else {
         addAssistant("Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.");
       }

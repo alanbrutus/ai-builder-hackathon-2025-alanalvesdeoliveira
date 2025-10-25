@@ -51,25 +51,39 @@ export async function POST(request: Request) {
 
     const respostaIA = resultadoIA.response;
 
-    // Parsear resposta (formato: Problema;Peça)
-    const linhas = respostaIA.split('\n').filter((l: string) => l.trim());
-    const problemasPecas: Array<{ problema: string; peca: string }> = [];
+    // Extrair a parte de análise (resposta ao cliente) e a parte estruturada (peças)
+    let respostaCliente = respostaIA;
+    let problemasPecas: Array<{ problema: string; peca: string }> = [];
 
-    for (const linha of linhas) {
-      if (linha.includes(';')) {
-        const [problema, peca] = linha.split(';').map((s: string) => s.trim());
-        if (problema && peca) {
-          problemasPecas.push({ problema, peca });
+    // Verificar se tem a seção de peças identificadas
+    const inicioPecas = respostaIA.indexOf('---PECAS_IDENTIFICADAS---');
+    const fimPecas = respostaIA.indexOf('---FIM_PECAS---');
+
+    if (inicioPecas !== -1 && fimPecas !== -1) {
+      // Separar resposta do cliente da parte estruturada
+      respostaCliente = respostaIA.substring(0, inicioPecas).trim();
+      
+      // Extrair linhas de peças
+      const secaoPecas = respostaIA.substring(inicioPecas + 27, fimPecas).trim();
+      const linhas = secaoPecas.split('\n').filter((l: string) => l.trim());
+
+      for (const linha of linhas) {
+        if (linha.includes(';')) {
+          const [problema, peca] = linha.split(';').map((s: string) => s.trim());
+          if (problema && peca) {
+            problemasPecas.push({ problema, peca });
+          }
         }
       }
     }
 
-    // Se não identificou problemas/peças, retornar a resposta da IA
+    // Se não identificou problemas/peças, retornar apenas a resposta
     if (problemasPecas.length === 0) {
       return NextResponse.json({
         success: true,
         identificado: false,
-        mensagem: respostaIA
+        mensagem: respostaCliente,
+        respostaCompleta: respostaCliente
       });
     }
 
@@ -119,6 +133,7 @@ export async function POST(request: Request) {
       identificado: true,
       problemas: problemasRegistrados,
       pecas: pecasResult.recordset,
+      respostaCompleta: respostaCliente,
       respostaOriginal: respostaIA
     });
 
