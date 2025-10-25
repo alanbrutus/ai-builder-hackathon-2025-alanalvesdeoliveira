@@ -21,17 +21,17 @@ const getGenAI = () => {
 };
 
 /**
- * Configuração do modelo Gemini Pro
+ * Configuração do modelo Gemini 1.5 Flash
  */
 export const getGeminiModel = () => {
   const client = getGenAI();
   return client.getGenerativeModel({
-    model: 'gemini-pro',
+    model: 'gemini-1.5-flash',
     generationConfig: {
       temperature: 0.7, // Criatividade moderada
       topK: 40,
       topP: 0.95,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192, // Gemini 1.5 suporta mais tokens
     },
   });
 };
