@@ -56,6 +56,7 @@ export default function ChatPage() {
   const [fabricanteNome, setFabricanteNome] = useState<string>("");
   const [modeloId, setModeloId] = useState<number | null>(null);
   const [modeloNome, setModeloNome] = useState<string>("");
+  const [modelosDisponiveis, setModelosDisponiveis] = useState<Modelo[]>([]);
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -145,16 +146,10 @@ export default function ChatPage() {
       const data = await response.json();
       
       if (data.success && data.data.length > 0) {
-        const options: SelectOption[] = data.data.map((m: Modelo) => ({
-          id: m.Id,
-          label: m.Nome,
-          sublabel: `${m.TipoVeiculo} - ${m.Periodo}`,
-        }));
-        
         addUser(fabricanteNomeParam);
+        setModelosDisponiveis(data.data);
         addAssistant(
-          `Perfeito! Qual modelo de ${fabricanteNomeParam} você possui?`,
-          options
+          `Perfeito! Agora selecione o modelo do seu ${fabricanteNomeParam}:`
         );
         setStep("select_modelo");
       }
@@ -308,11 +303,13 @@ Seja técnico mas didático.`;
 
   const placeholder = useMemo(() => {
     if (step === "ask_name") return "Digite seu nome";
+    if (step === "select_modelo") return "Selecione o modelo";
     if (step === "select_categoria") return "Digite a categoria (ex: Freios, Motor, Suspensão)";
     return "Aguardando seleção...";
   }, [step]);
 
-  const showInput = step === "ask_name" || step === "select_categoria";
+  const showInput = step === "ask_name" || step === "select_modelo" || step === "select_categoria";
+  const showModeloSelect = step === "select_modelo" && modelosDisponiveis.length > 0;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -378,20 +375,47 @@ Seja técnico mas didático.`;
         {showInput && (
           <form onSubmit={handleSubmit} className="border-t border-gray-100 p-3">
             <div className="flex items-center gap-2">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={placeholder}
-                disabled={loading}
-                className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-              />
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Enviar
-              </button>
+              {showModeloSelect ? (
+                <select
+                  value={modeloId || ''}
+                  onChange={(e) => {
+                    const selectedId = parseInt(e.target.value);
+                    const selectedModelo = modelosDisponiveis.find(m => m.Id === selectedId);
+                    if (selectedModelo) {
+                      setModeloId(selectedId);
+                      setModeloNome(selectedModelo.Nome);
+                      addUser(selectedModelo.Nome);
+                      loadPromptAtendimento(selectedModelo.Nome);
+                    }
+                  }}
+                  disabled={loading}
+                  className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 bg-white"
+                >
+                  <option value="">Selecione o modelo...</option>
+                  {modelosDisponiveis.map((modelo) => (
+                    <option key={modelo.Id} value={modelo.Id}>
+                      {modelo.Nome} - {modelo.TipoVeiculo} ({modelo.Periodo})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={placeholder}
+                    disabled={loading}
+                    className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading || !input.trim()}
+                    className="px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Enviar
+                  </button>
+                </>
+              )}
             </div>
           </form>
         )}
