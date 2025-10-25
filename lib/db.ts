@@ -1,10 +1,9 @@
 import sql from 'mssql';
 
 // Configuração do SQL Server
-// Nota: Em JavaScript, \ precisa ser escapado como \\
-// Mas o driver SQL interpreta corretamente como .\ALYASQLEXPRESS
+// Usando localhost com porta dinâmica do SQL Server Express
 const config: sql.config = {
-  server: String.raw`.\ALYASQLEXPRESS`,
+  server: 'localhost',
   database: 'AI_Builder_Hackthon',
   user: 'AI_Hackthon',
   password: '41@H4ckth0n',
@@ -13,6 +12,7 @@ const config: sql.config = {
     trustServerCertificate: true,
     enableArithAbort: true,
     useUTC: false,
+    instanceName: 'ALYASQLEXPRESS',
   },
   pool: {
     max: 10,
