@@ -41,6 +41,9 @@ export default function ChatPage() {
   const [fabricanteId, setFabricanteId] = useState("");
   const [modeloId, setModeloId] = useState("");
   
+  // ID da conversa no banco
+  const [conversaId, setConversaId] = useState<number | null>(null);
+  
   // Listas para os selects
   const [grupos, setGrupos] = useState<GrupoEmpresarial[]>([]);
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
@@ -133,21 +136,45 @@ export default function ChatPage() {
       return;
     }
 
-    setChatStarted(true);
-    
-    const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
-    const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
+    try {
+      // Criar conversa no banco
+      const response = await fetch('/api/conversas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nomeCliente: name,
+          grupoEmpresarialId: parseInt(grupoId),
+          fabricanteId: parseInt(fabricanteId),
+          modeloId: parseInt(modeloId)
+        })
+      });
 
-    // Mensagem de boas-vindas simples (não mostra o prompt técnico)
-    addAssistant(
-      `Olá ${name}! 👋\n\nVejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Estou aqui para ajudar com peças e acessórios para o seu veículo.\n\nComo posso ajudar você hoje?`
-    );
+      const data = await response.json();
+
+      if (data.success) {
+        setConversaId(data.data.Id);
+        setChatStarted(true);
+        
+        const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
+        const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
+
+        // Mensagem de boas-vindas simples (não mostra o prompt técnico)
+        addAssistant(
+          `Olá ${name}! 👋\n\nVejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Estou aqui para ajudar com peças e acessórios para o seu veículo.\n\nComo posso ajudar você hoje?`
+        );
+      } else {
+        alert('Erro ao iniciar conversa. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('Erro ao iniciar chat:', error);
+      alert('Erro ao iniciar conversa. Tente novamente.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || !conversaId) return;
 
     addUser(text);
     setInput("");
@@ -158,7 +185,29 @@ export default function ChatPage() {
       const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
       const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
 
-      // Buscar prompt de recomendação
+      // Primeiro: Identificar peças na mensagem
+      const identificacaoResponse = await fetch('/api/identificar-pecas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversaId: conversaId,
+          mensagem: text,
+          grupoEmpresarial: grupoSelecionado?.Nome || '',
+          fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
+          modeloVeiculo: modeloSelecionado?.Nome || ''
+        })
+      });
+
+      const identificacaoData = await identificacaoResponse.json();
+
+      // Se não identificou peças, usar resposta direta da IA
+      if (!identificacaoData.identificado) {
+        addAssistant(identificacaoData.mensagem || "Como posso ajudar você?");
+        setLoading(false);
+        return;
+      }
+
+      // Se identificou peças, buscar recomendações
       const promptResponse = await fetch('/api/prompts/recomendacao');
       const promptData = await promptResponse.json();
       
@@ -177,7 +226,7 @@ O cliente ${name} possui um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.
 Ajude com: ${text}`;
       }
 
-      // Enviar para Gemini
+      // Enviar para Gemini para recomendações detalhadas
       const aiResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -190,7 +239,17 @@ Ajude com: ${text}`;
       const aiData = await aiResponse.json();
 
       if (aiData.success) {
-        addAssistant(aiData.response);
+        // Adicionar informação sobre peças identificadas
+        let resposta = aiData.response;
+        
+        if (identificacaoData.pecas && identificacaoData.pecas.length > 0) {
+          resposta += `\n\n📋 **Peças identificadas para seu veículo:**\n`;
+          identificacaoData.pecas.forEach((peca: any) => {
+            resposta += `• ${peca.NomePeca}\n`;
+          });
+        }
+        
+        addAssistant(resposta);
       } else {
         addAssistant("Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.");
       }
