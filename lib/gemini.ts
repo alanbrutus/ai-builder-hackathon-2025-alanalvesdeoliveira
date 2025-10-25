@@ -21,17 +21,19 @@ const getGenAI = () => {
 };
 
 /**
- * Configuração do modelo Gemini 1.5 Flash
+ * Configuração do modelo Gemini 2.5 Flash
+ * Modelo mais recente e adequado para tarefas de texto e chat
  */
 export const getGeminiModel = () => {
   const client = getGenAI();
+  
   return client.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.7, // Criatividade moderada
       topK: 40,
       topP: 0.95,
-      maxOutputTokens: 8192, // Gemini 1.5 suporta mais tokens
+      maxOutputTokens: 8192,
     },
   });
 };
