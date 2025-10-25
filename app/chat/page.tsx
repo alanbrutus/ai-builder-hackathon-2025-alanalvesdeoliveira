@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Role = "assistant" | "user";
@@ -9,71 +9,113 @@ type Message = {
   id: string;
   role: Role;
   content: string;
-  options?: SelectOption[];
 };
-
-type SelectOption = {
-  id: number;
-  label: string;
-  sublabel?: string;
-};
-
-type Step = "ask_name" | "select_grupo" | "select_fabricante" | "select_modelo" | "select_categoria" | "summary";
 
 interface GrupoEmpresarial {
   Id: number;
   Nome: string;
-  Descricao: string;
-  TotalFabricantes: number;
-  TotalModelos: number;
 }
 
 interface Fabricante {
   Id: number;
   Nome: string;
-  Pais: string;
-  TotalModelos: number;
 }
 
 interface Modelo {
   Id: number;
   Nome: string;
-  Periodo: string;
   TipoVeiculo: string;
+  Periodo: string;
 }
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [step, setStep] = useState<Step>("ask_name");
   const [loading, setLoading] = useState(false);
+  const [chatStarted, setChatStarted] = useState(false);
   
-  // Dados do cliente
-  const [name, setName] = useState<string>("");
-  const [grupoId, setGrupoId] = useState<number | null>(null);
-  const [grupoNome, setGrupoNome] = useState<string>("");
-  const [fabricanteId, setFabricanteId] = useState<number | null>(null);
-  const [fabricanteNome, setFabricanteNome] = useState<string>("");
-  const [modeloId, setModeloId] = useState<number | null>(null);
-  const [modeloNome, setModeloNome] = useState<string>("");
-  const [modelosDisponiveis, setModelosDisponiveis] = useState<Modelo[]>([]);
+  // Dados do formulário lateral
+  const [name, setName] = useState("");
+  const [grupoId, setGrupoId] = useState("");
+  const [fabricanteId, setFabricanteId] = useState("");
+  const [modeloId, setModeloId] = useState("");
+  
+  // Listas para os selects
+  const [grupos, setGrupos] = useState<GrupoEmpresarial[]>([]);
+  const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
+  const [modelos, setModelos] = useState<Modelo[]>([]);
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  // Carregar grupos ao montar
   useEffect(() => {
-    if (messages.length === 0) {
-      addAssistant("Olá! Eu sou a AutoParts AI. Para te ajudar, qual é o seu nome?");
-    }
+    loadGrupos();
   }, []);
+
+  // Carregar fabricantes quando grupo mudar
+  useEffect(() => {
+    if (grupoId) {
+      loadFabricantes(parseInt(grupoId));
+    } else {
+      setFabricantes([]);
+      setFabricanteId("");
+    }
+  }, [grupoId]);
+
+  // Carregar modelos quando fabricante mudar
+  useEffect(() => {
+    if (fabricanteId) {
+      loadModelos(parseInt(fabricanteId));
+    } else {
+      setModelos([]);
+      setModeloId("");
+    }
+  }, [fabricanteId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const addAssistant = (content: string, options?: SelectOption[]) => {
+  const loadGrupos = async () => {
+    try {
+      const response = await fetch('/api/grupos');
+      const data = await response.json();
+      if (data.success) {
+        setGrupos(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar grupos:', error);
+    }
+  };
+
+  const loadFabricantes = async (grupoIdParam: number) => {
+    try {
+      const response = await fetch(`/api/fabricantes/${grupoIdParam}`);
+      const data = await response.json();
+      if (data.success) {
+        setFabricantes(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar fabricantes:', error);
+    }
+  };
+
+  const loadModelos = async (fabricanteIdParam: number) => {
+    try {
+      const response = await fetch(`/api/modelos/${fabricanteIdParam}`);
+      const data = await response.json();
+      if (data.success) {
+        setModelos(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar modelos:', error);
+    }
+  };
+
+  const addAssistant = (content: string) => {
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), role: "assistant", content, options },
+      { id: crypto.randomUUID(), role: "assistant", content },
     ]);
   };
 
@@ -84,158 +126,84 @@ export default function ChatPage() {
     ]);
   };
 
-  const loadGrupos = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/grupos');
-      const data = await response.json();
-      
-      if (data.success && data.data.length > 0) {
-        const options: SelectOption[] = data.data.map((g: GrupoEmpresarial) => ({
-          id: g.Id,
-          label: g.Nome,
-          sublabel: `${g.TotalFabricantes} fabricantes, ${g.TotalModelos} modelos`,
-        }));
-        
-        addAssistant(
-          `Perfeito, ${name}! Agora selecione o grupo empresarial do seu veículo:`,
-          options
-        );
-        setStep("select_grupo");
-      }
-    } catch (error) {
-      console.error('Erro ao carregar grupos:', error);
-      addAssistant("Desculpe, ocorreu um erro ao carregar os grupos. Tente novamente.");
-    } finally {
-      setLoading(false);
+  const handleStartChat = async () => {
+    if (!name || !grupoId || !fabricanteId || !modeloId) {
+      alert("Por favor, preencha todos os campos antes de iniciar o chat.");
+      return;
     }
-  };
 
-  const loadFabricantes = async (grupoIdParam: number, grupoNomeParam: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/fabricantes/${grupoIdParam}`);
-      const data = await response.json();
-      
-      if (data.success && data.data.length > 0) {
-        const options: SelectOption[] = data.data.map((f: Fabricante) => ({
-          id: f.Id,
-          label: f.Nome,
-          sublabel: `${f.Pais} - ${f.TotalModelos} modelos`,
-        }));
-        
-        addUser(grupoNomeParam);
-        addAssistant(
-          `Ótimo! O grupo ${grupoNomeParam} possui ${data.data.length} fabricantes. Qual é o fabricante do seu veículo?`,
-          options
-        );
-        setStep("select_fabricante");
-      }
-    } catch (error) {
-      console.error('Erro ao carregar fabricantes:', error);
-      addAssistant("Desculpe, ocorreu um erro ao carregar os fabricantes. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    setChatStarted(true);
+    
+    const grupoSelecionado = grupos.find(g => g.Id === parseInt(grupoId));
+    const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
+    const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
 
-  const loadModelos = async (fabricanteIdParam: number, fabricanteNomeParam: string) => {
-    setLoading(true);
+    // Buscar e processar prompt de atendimento
     try {
-      const response = await fetch(`/api/modelos/${fabricanteIdParam}`);
-      const data = await response.json();
-      
-      if (data.success && data.data.length > 0) {
-        addUser(fabricanteNomeParam);
-        setModelosDisponiveis(data.data);
-        addAssistant(
-          `Perfeito! Agora selecione o modelo do seu ${fabricanteNomeParam}:`
-        );
-        setStep("select_modelo");
-      }
-    } catch (error) {
-      console.error('Erro ao carregar modelos:', error);
-      addAssistant("Desculpe, ocorreu um erro ao carregar os modelos. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPromptAtendimento = async (modeloNomeParam: string) => {
-    setLoading(true);
-    try {
-      // Buscar prompt do banco de dados
       const response = await fetch('/api/prompts/atendimento');
       const data = await response.json();
       
       if (data.success) {
-        // Substituir variáveis no prompt
         let promptProcessado = data.data.ConteudoPrompt;
         promptProcessado = promptProcessado.replace(/\{\{nome_cliente\}\}/g, name);
-        promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoNome);
-        promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteNome);
-        promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloNomeParam);
+        promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoSelecionado?.Nome || '');
+        promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteSelecionado?.Nome || '');
+        promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloSelecionado?.Nome || '');
         
         addAssistant(promptProcessado);
-        setStep("select_categoria");
       } else {
-        // Fallback caso o prompt não seja encontrado
         addAssistant(
-          `Excelente, ${name}! Você possui um ${fabricanteNome} ${modeloNomeParam} do grupo ${grupoNome}.\n\nAgora, em qual categoria de peças você está interessado?\n\n• Motor\n• Suspensão\n• Freios\n• Transmissão\n• Elétrica\n• Carroceria\n• Filtros\n• Iluminação\n• Arrefecimento\n• Escapamento`
+          `Olá ${name}! Vejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Como posso ajudar você hoje?`
         );
-        setStep("select_categoria");
       }
     } catch (error) {
-      console.error('Erro ao carregar prompt:', error);
-      // Fallback em caso de erro
+      console.error('Erro ao buscar prompt:', error);
       addAssistant(
-        `Excelente, ${name}! Você possui um ${fabricanteNome} ${modeloNomeParam} do grupo ${grupoNome}.\n\nAgora, em qual categoria de peças você está interessado?\n\n• Motor\n• Suspensão\n• Freios\n• Transmissão\n• Elétrica\n• Carroceria\n• Filtros\n• Iluminação\n• Arrefecimento\n• Escapamento`
+        `Olá ${name}! Vejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Como posso ajudar você hoje?`
       );
-      setStep("select_categoria");
-    } finally {
-      setLoading(false);
     }
   };
 
-  const sendToAI = async (categoria: string) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || loading) return;
+
+    addUser(text);
+    setInput("");
     setLoading(true);
+
     try {
-      // Buscar prompt de recomendação do banco
+      const grupoSelecionado = grupos.find(g => g.Id === parseInt(grupoId));
+      const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
+      const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
+
+      // Buscar prompt de recomendação
       const promptResponse = await fetch('/api/prompts/recomendacao');
       const promptData = await promptResponse.json();
       
       let systemPrompt = '';
       
       if (promptData.success) {
-        // Usar prompt do banco e substituir variáveis
         systemPrompt = promptData.data.ConteudoPrompt;
         systemPrompt = systemPrompt.replace(/\{\{nome_cliente\}\}/g, name);
-        systemPrompt = systemPrompt.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteNome);
-        systemPrompt = systemPrompt.replace(/\{\{modelo_veiculo\}\}/g, modeloNome);
-        systemPrompt = systemPrompt.replace(/\{\{problema_cliente\}\}/g, `Interesse em peças da categoria: ${categoria}`);
-        systemPrompt = systemPrompt.replace(/\{\{categoria_interesse\}\}/g, categoria);
+        systemPrompt = systemPrompt.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteSelecionado?.Nome || '');
+        systemPrompt = systemPrompt.replace(/\{\{modelo_veiculo\}\}/g, modeloSelecionado?.Nome || '');
+        systemPrompt = systemPrompt.replace(/\{\{problema_cliente\}\}/g, text);
+        systemPrompt = systemPrompt.replace(/\{\{categoria_interesse\}\}/g, text);
       } else {
-        // Fallback: prompt padrão
         systemPrompt = `Você é um assistente especializado em peças automotivas.
-O cliente ${name} possui um ${fabricanteNome} ${modeloNome}.
-Ele está interessado em peças da categoria: ${categoria}.
-
-Forneça recomendações de peças compatíveis, explicando:
-1. Quais peças são necessárias
-2. Diferenças entre opções originais e alternativas
-3. Faixa de preço estimada
-4. Importância da manutenção preventiva
-
-Seja técnico mas didático.`;
+O cliente ${name} possui um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}.
+Ajude com: ${text}`;
       }
 
-      // Enviar para o Gemini
+      // Enviar para Gemini
       const aiResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: systemPrompt,
-          message: `Preciso de orientação sobre peças da categoria ${categoria} para meu veículo.`
+          message: text
         })
       });
 
@@ -243,191 +211,195 @@ Seja técnico mas didático.`;
 
       if (aiData.success) {
         addAssistant(aiData.response);
-        setStep("summary");
       } else {
-        addAssistant(
-          `Desculpe, tive um problema ao processar sua solicitação. Mas posso te ajudar com peças da categoria ${categoria} para seu ${fabricanteNome} ${modeloNome}. Pode me dar mais detalhes sobre o que você precisa?`
-        );
+        addAssistant("Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.");
       }
     } catch (error) {
-      console.error('Erro ao enviar para IA:', error);
-      addAssistant(
-        `Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente ou entre em contato com nosso suporte.`
-      );
+      console.error('Erro:', error);
+      addAssistant("Desculpe, ocorreu um erro. Tente novamente.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || loading) return;
-
-    if (step === "ask_name") {
-      setName(text);
-      addUser(text);
-      loadGrupos();
-      setInput("");
-      return;
-    }
-
-    if (step === "select_categoria") {
-      addUser(text);
-      sendToAI(text);
-      setInput("");
-      return;
-    }
-
-    setInput("");
-  };
-
-  const handleOptionClick = (option: SelectOption) => {
-    if (loading) return;
-
-    if (step === "select_grupo") {
-      setGrupoId(option.id);
-      setGrupoNome(option.label);
-      loadFabricantes(option.id, option.label);
-    } else if (step === "select_fabricante") {
-      setFabricanteId(option.id);
-      setFabricanteNome(option.label);
-      loadModelos(option.id, option.label);
-    } else if (step === "select_modelo") {
-      setModeloId(option.id);
-      setModeloNome(option.label);
-      addUser(option.label);
-      loadPromptAtendimento(option.label);
-    }
-  };
-
-  const placeholder = useMemo(() => {
-    if (step === "ask_name") return "Digite seu nome";
-    if (step === "select_modelo") return "Selecione o modelo";
-    if (step === "select_categoria") return "Digite a categoria (ex: Freios, Motor, Suspensão)";
-    return "Aguardando seleção...";
-  }, [step]);
-
-  const showInput = step === "ask_name" || step === "select_modelo" || step === "select_categoria";
-  const showModeloSelect = step === "select_modelo" && modelosDisponiveis.length > 0;
-
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-gray-900">Chat com IA</h2>
-        <Link href="/" className="text-blue-600 hover:underline">
-          Voltar ao início
-        </Link>
-      </div>
-
-      <div className="bg-white rounded-lg shadow border border-gray-100 flex flex-col h-[75vh]">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((m) => (
-            <div key={m.id}>
-              <div className="flex">
-                <div
-                  className={
-                    m.role === "assistant"
-                      ? "bg-blue-50 text-gray-900 border border-blue-100 ml-0 mr-auto rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%]"
-                      : "bg-gray-900 text-white ml-auto mr-0 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[85%]"
-                  }
-                >
-                  <div className="whitespace-pre-line">{m.content}</div>
-                </div>
-              </div>
-              
-              {/* Opções de seleção */}
-              {m.options && m.options.length > 0 && (
-                <div className="mt-3 ml-0 mr-auto max-w-[85%] grid grid-cols-1 gap-2">
-                  {m.options.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => handleOptionClick(option)}
-                      disabled={loading}
-                      className="text-left px-4 py-3 bg-white border-2 border-blue-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="font-medium text-gray-900">{option.label}</div>
-                      {option.sublabel && (
-                        <div className="text-sm text-gray-500 mt-1">{option.sublabel}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg rounded-tl-sm">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                  <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                  <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }}></div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={bottomRef} />
+    <div className="flex h-screen">
+      {/* Sidebar - Formulário */}
+      <div className="w-80 bg-gray-50 border-r border-gray-200 p-6 overflow-y-auto">
+        <div className="mb-6">
+          <Link href="/" className="text-blue-600 hover:underline text-sm">
+            ← Voltar ao início
+          </Link>
         </div>
 
-        {showInput && (
-          <form onSubmit={handleSubmit} className="border-t border-gray-100 p-3">
-            <div className="flex items-center gap-2">
-              {showModeloSelect ? (
-                <select
-                  value={modeloId || ''}
-                  onChange={(e) => {
-                    const selectedId = parseInt(e.target.value);
-                    const selectedModelo = modelosDisponiveis.find(m => m.Id === selectedId);
-                    if (selectedModelo) {
-                      setModeloId(selectedId);
-                      setModeloNome(selectedModelo.Nome);
-                      addUser(selectedModelo.Nome);
-                      loadPromptAtendimento(selectedModelo.Nome);
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Dados do Veículo</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Seu Nome *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={chatStarted}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              placeholder="Digite seu nome"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Grupo Empresarial *
+            </label>
+            <select
+              value={grupoId}
+              onChange={(e) => setGrupoId(e.target.value)}
+              disabled={chatStarted}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">Selecione...</option>
+              {grupos.map((grupo) => (
+                <option key={grupo.Id} value={grupo.Id}>
+                  {grupo.Nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fabricante *
+            </label>
+            <select
+              value={fabricanteId}
+              onChange={(e) => setFabricanteId(e.target.value)}
+              disabled={chatStarted || !grupoId}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">Selecione...</option>
+              {fabricantes.map((fabricante) => (
+                <option key={fabricante.Id} value={fabricante.Id}>
+                  {fabricante.Nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Modelo *
+            </label>
+            <select
+              value={modeloId}
+              onChange={(e) => setModeloId(e.target.value)}
+              disabled={chatStarted || !fabricanteId}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">Selecione...</option>
+              {modelos.map((modelo) => (
+                <option key={modelo.Id} value={modelo.Id}>
+                  {modelo.Nome} - {modelo.TipoVeiculo}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {!chatStarted && (
+            <button
+              onClick={handleStartChat}
+              disabled={!name || !grupoId || !fabricanteId || !modeloId}
+              className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Iniciar Chat
+            </button>
+          )}
+
+          {chatStarted && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-800 font-medium">✓ Chat iniciado</p>
+              <p className="text-xs text-green-600 mt-1">
+                {name} - {modelos.find(m => m.Id === parseInt(modeloId))?.Nome}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col">
+        <div className="bg-white border-b border-gray-200 p-4">
+          <h1 className="text-2xl font-semibold text-gray-900">Chat com IA</h1>
+          <p className="text-sm text-gray-500 mt-1">AutoParts AI - Assistente Virtual</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+          {!chatStarted ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🤖</div>
+                <h3 className="text-xl font-medium text-gray-900 mb-2">
+                  Preencha os dados ao lado para iniciar
+                </h3>
+                <p className="text-gray-500">
+                  Informe seu nome e os dados do seu veículo
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-4">
+              {messages.map((m) => (
+                <div key={m.id} className="flex">
+                  <div
+                    className={
+                      m.role === "assistant"
+                        ? "bg-white text-gray-900 border border-gray-200 ml-0 mr-auto rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%] shadow-sm"
+                        : "bg-blue-600 text-white ml-auto mr-0 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%]"
                     }
-                  }}
-                  disabled={loading}
-                  className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 bg-white"
-                >
-                  <option value="">Selecione o modelo...</option>
-                  {modelosDisponiveis.map((modelo) => (
-                    <option key={modelo.Id} value={modelo.Id}>
-                      {modelo.Nome} - {modelo.TipoVeiculo} ({modelo.Periodo})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <>
-                  <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder={placeholder}
-                    disabled={loading}
-                    className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading || !input.trim()}
-                    className="px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Enviar
-                  </button>
-                </>
+                    <div className="whitespace-pre-line">{m.content}</div>
+                  </div>
+                </div>
+              ))}
+              
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-white border border-gray-200 p-3 rounded-lg rounded-tl-sm shadow-sm">
+                    <div className="flex space-x-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }}></div>
+                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                    </div>
+                  </div>
+                </div>
               )}
+              
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+
+        {chatStarted && (
+          <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white p-4">
+            <div className="max-w-4xl mx-auto flex items-center gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Digite sua mensagem..."
+                disabled={loading}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              />
+              <button
+                type="submit"
+                disabled={loading || !input.trim()}
+                className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Enviar
+              </button>
             </div>
           </form>
         )}
-      </div>
-
-      <div className="mt-4 text-sm text-gray-500">
-        <p>
-          <strong>Hierarquia:</strong> Grupo Empresarial → Fabricante → Modelo
-        </p>
-        <p className="mt-1">
-          Foco: Sedans, Hatchbacks, Pick-ups pequenas e médias e SUVs. Não atendemos veículos de carga, motocicletas e ciclomotores.
-        </p>
       </div>
     </div>
   );
