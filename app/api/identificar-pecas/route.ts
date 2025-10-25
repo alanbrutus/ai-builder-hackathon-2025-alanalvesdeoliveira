@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     // Extrair a parte de análise (resposta ao cliente) e a parte estruturada (peças)
     let respostaCliente = respostaIA;
-    let problemasPecas: Array<{ problema: string; peca: string }> = [];
+    let problemasPecas: Array<{ problema: string; peca: string; codigo?: string }> = [];
 
     // Verificar se tem a seção de peças identificadas
     const inicioPecas = respostaIA.indexOf('---PECAS_IDENTIFICADAS---');
@@ -110,18 +110,30 @@ export async function POST(request: Request) {
             problemaAtual = partes[1] || partes[0].replace(/^problema[:\s]*/i, '');
             console.log(`   📌 Problema identificado: ${problemaAtual}`);
           }
-          // Se a linha começa com "Peça", extrair as peças
+          // Se a linha começa com "Peça", extrair peça e código
+          // Formato: Peça;Nome da Peça;Código da Peça
           else if (linha.toLowerCase().startsWith('peça')) {
-            // Pode ter múltiplas peças separadas por ;
-            for (let i = 1; i < partes.length; i++) {
-              const peca = partes[i].trim();
-              if (peca && problemaAtual) {
-                problemasPecas.push({ problema: problemaAtual, peca });
-                console.log(`   ✓ Peça extraída: ${problemaAtual} -> ${peca}`);
-              }
+            const nomePeca = partes[1]?.trim();
+            const codigoPeca = partes[2]?.trim();
+            
+            if (nomePeca && problemaAtual) {
+              problemasPecas.push({ 
+                problema: problemaAtual, 
+                peca: nomePeca,
+                codigo: codigoPeca || undefined
+              });
+              console.log(`   ✓ Peça extraída: ${problemaAtual} -> ${nomePeca}${codigoPeca ? ` (Código: ${codigoPeca})` : ''}`);
             }
           }
-          // Formato simples: Problema;Peça
+          // Formato com 3 colunas: Problema;Peça;Código
+          else if (partes.length >= 3) {
+            const [problema, peca, codigo] = partes;
+            if (problema && peca) {
+              problemasPecas.push({ problema, peca, codigo: codigo || undefined });
+              console.log(`   ✓ Peça extraída: ${problema} -> ${peca}${codigo ? ` (Código: ${codigo})` : ''}`);
+            }
+          }
+          // Formato com 2 colunas: Problema;Peça (sem código)
           else if (partes.length >= 2) {
             const [problema, peca] = partes;
             if (problema && peca) {
@@ -169,15 +181,15 @@ export async function POST(request: Request) {
 
       // Registrar peças relacionadas a este problema
       const pecasDoProblema = problemasPecas
-        .filter(pp => pp.problema === descricaoProblema)
-        .map(pp => pp.peca);
+        .filter(pp => pp.problema === descricaoProblema);
 
-      for (const nomePeca of pecasDoProblema) {
+      for (const pecaInfo of pecasDoProblema) {
         await pool
           .request()
           .input('ConversaId', conversaId)
           .input('ProblemaId', problemaId)
-          .input('NomePeca', nomePeca)
+          .input('NomePeca', pecaInfo.peca)
+          .input('CodigoPeca', pecaInfo.codigo || null)
           .input('CategoriaPeca', null)
           .input('Prioridade', 'Média')
           .execute('AIHT_sp_RegistrarPeca');
