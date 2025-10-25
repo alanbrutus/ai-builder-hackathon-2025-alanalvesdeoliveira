@@ -201,11 +201,22 @@ export default function ChatPage() {
 
       const identificacaoData = await identificacaoResponse.json();
 
+      console.log('📥 Resposta da API:', identificacaoData);
+
       // Usar a resposta completa da IA de identificação
-      if (identificacaoData.success && identificacaoData.respostaCompleta) {
-        addAssistant(identificacaoData.respostaCompleta);
+      if (identificacaoData.success) {
+        // Pode ter respostaCompleta ou mensagem
+        const resposta = identificacaoData.respostaCompleta || identificacaoData.mensagem;
+        if (resposta) {
+          addAssistant(resposta);
+        } else {
+          console.error('❌ Resposta vazia da API');
+          addAssistant("Desculpe, recebi uma resposta vazia. Tente novamente.");
+        }
       } else {
-        addAssistant("Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.");
+        console.error('❌ Erro na API:', identificacaoData.error);
+        const mensagemErro = identificacaoData.error || "Erro desconhecido";
+        addAssistant(`Desculpe, ocorreu um erro: ${mensagemErro}. Tente novamente.`);
       }
     } catch (error) {
       console.error('Erro:', error);
