@@ -1,7 +1,7 @@
 import sql from 'mssql';
 
 const config: sql.config = {
-  server: 'localhost\\ALYASQLEXPRESS',
+  server: '(local)\\ALYASQLEXPRESS',
   database: 'AI_Builder_Hackthon',
   user: 'AI_Hackthon',
   password: '41@H4ckth0n',
@@ -9,7 +9,7 @@ const config: sql.config = {
     encrypt: false,
     trustServerCertificate: true,
     enableArithAbort: true,
-    instanceName: 'ALYASQLEXPRESS',
+    useUTC: false,
   },
   pool: {
     max: 10,
