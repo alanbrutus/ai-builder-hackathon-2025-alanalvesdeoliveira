@@ -65,6 +65,7 @@ export async function POST(request: Request) {
     }
 
     if (!resultadoIA.success || !resultadoIA.response) {
+      console.error('❌ Erro na resposta da IA:', resultadoIA.error);
       return NextResponse.json({
         success: false,
         error: resultadoIA.error || 'Erro ao processar com IA',
@@ -72,7 +73,9 @@ export async function POST(request: Request) {
       }, { status: 500 });
     }
 
+    console.log('✅ IA respondeu com sucesso');
     const respostaIA = resultadoIA.response;
+    console.log('📝 Tamanho da resposta:', respostaIA.length, 'caracteres');
 
     // Extrair a parte de análise (resposta ao cliente) e a parte estruturada (peças)
     let respostaCliente = respostaIA;
@@ -81,8 +84,13 @@ export async function POST(request: Request) {
     // Verificar se tem a seção de peças identificadas
     const inicioPecas = respostaIA.indexOf('---PECAS_IDENTIFICADAS---');
     const fimPecas = respostaIA.indexOf('---FIM_PECAS---');
+    
+    console.log('🔍 Procurando marcadores...');
+    console.log('   Início:', inicioPecas);
+    console.log('   Fim:', fimPecas);
 
     if (inicioPecas !== -1 && fimPecas !== -1) {
+      console.log('✅ Marcadores encontrados! Extraindo peças...');
       // Separar resposta do cliente da parte estruturada
       respostaCliente = respostaIA.substring(0, inicioPecas).trim();
       
@@ -95,13 +103,18 @@ export async function POST(request: Request) {
           const [problema, peca] = linha.split(';').map((s: string) => s.trim());
           if (problema && peca) {
             problemasPecas.push({ problema, peca });
+            console.log(`   ✓ Peça extraída: ${problema} -> ${peca}`);
           }
         }
       }
+      console.log(`📦 Total de peças extraídas: ${problemasPecas.length}`);
+    } else {
+      console.log('⚠️ Marcadores não encontrados - retornando resposta simples');
     }
 
     // Se não identificou problemas/peças, retornar apenas a resposta
     if (problemasPecas.length === 0) {
+      console.log('📤 Retornando resposta sem peças identificadas');
       return NextResponse.json({
         success: true,
         identificado: false,
@@ -109,6 +122,8 @@ export async function POST(request: Request) {
         respostaCompleta: respostaCliente
       });
     }
+    
+    console.log('💾 Registrando problemas e peças no banco...');
 
     // Registrar problemas e peças no banco
     const problemasSet = new Set(problemasPecas.map(pp => pp.problema));
@@ -151,6 +166,10 @@ export async function POST(request: Request) {
       .input('ConversaId', conversaId)
       .execute('AIHT_sp_ListarPecasConversa');
 
+    console.log('✅ Processo concluído com sucesso!');
+    console.log(`   Problemas registrados: ${problemasRegistrados.length}`);
+    console.log(`   Peças registradas: ${pecasResult.recordset.length}`);
+    
     return NextResponse.json({
       success: true,
       identificado: true,
@@ -161,7 +180,8 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('Erro ao identificar peças:', error);
+    console.error('❌ ERRO CRÍTICO:', error);
+    console.error('   Stack:', error.stack);
     return NextResponse.json({
       success: false,
       error: error.message
