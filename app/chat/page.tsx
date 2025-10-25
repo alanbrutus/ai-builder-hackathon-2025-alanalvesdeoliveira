@@ -209,6 +209,28 @@ export default function ChatPage() {
         const resposta = identificacaoData.respostaCompleta || identificacaoData.mensagem;
         if (resposta) {
           addAssistant(resposta);
+          
+          // Verificar se o cliente quer cotação
+          const cotacaoResponse = await fetch('/api/gerar-cotacao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversaId: conversaId,
+              mensagemCliente: text
+            })
+          });
+          
+          const cotacaoData = await cotacaoResponse.json();
+          
+          if (cotacaoData.success && cotacaoData.intencaoCotacao) {
+            console.log('💰 Intenção de cotação detectada!');
+            console.log('   Palavras:', cotacaoData.palavrasEncontradas);
+            
+            if (cotacaoData.cotacao) {
+              // Adicionar resposta de cotação
+              addAssistant(cotacaoData.cotacao);
+            }
+          }
         } else {
           console.error('❌ Resposta vazia da API');
           addAssistant("Desculpe, recebi uma resposta vazia. Tente novamente.");
