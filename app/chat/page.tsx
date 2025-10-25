@@ -202,6 +202,68 @@ export default function ChatPage() {
     }
   };
 
+  const sendToAI = async (categoria: string) => {
+    setLoading(true);
+    try {
+      // Buscar prompt de recomendação do banco
+      const promptResponse = await fetch('/api/prompts/recomendacao');
+      const promptData = await promptResponse.json();
+      
+      let systemPrompt = '';
+      
+      if (promptData.success) {
+        // Usar prompt do banco e substituir variáveis
+        systemPrompt = promptData.data.ConteudoPrompt;
+        systemPrompt = systemPrompt.replace(/\{\{nome_cliente\}\}/g, name);
+        systemPrompt = systemPrompt.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteNome);
+        systemPrompt = systemPrompt.replace(/\{\{modelo_veiculo\}\}/g, modeloNome);
+        systemPrompt = systemPrompt.replace(/\{\{problema_cliente\}\}/g, `Interesse em peças da categoria: ${categoria}`);
+        systemPrompt = systemPrompt.replace(/\{\{categoria_interesse\}\}/g, categoria);
+      } else {
+        // Fallback: prompt padrão
+        systemPrompt = `Você é um assistente especializado em peças automotivas.
+O cliente ${name} possui um ${fabricanteNome} ${modeloNome}.
+Ele está interessado em peças da categoria: ${categoria}.
+
+Forneça recomendações de peças compatíveis, explicando:
+1. Quais peças são necessárias
+2. Diferenças entre opções originais e alternativas
+3. Faixa de preço estimada
+4. Importância da manutenção preventiva
+
+Seja técnico mas didático.`;
+      }
+
+      // Enviar para o Gemini
+      const aiResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: systemPrompt,
+          message: `Preciso de orientação sobre peças da categoria ${categoria} para meu veículo.`
+        })
+      });
+
+      const aiData = await aiResponse.json();
+
+      if (aiData.success) {
+        addAssistant(aiData.response);
+        setStep("summary");
+      } else {
+        addAssistant(
+          `Desculpe, tive um problema ao processar sua solicitação. Mas posso te ajudar com peças da categoria ${categoria} para seu ${fabricanteNome} ${modeloNome}. Pode me dar mais detalhes sobre o que você precisa?`
+        );
+      }
+    } catch (error) {
+      console.error('Erro ao enviar para IA:', error);
+      addAssistant(
+        `Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente ou entre em contato com nosso suporte.`
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
@@ -217,10 +279,7 @@ export default function ChatPage() {
 
     if (step === "select_categoria") {
       addUser(text);
-      addAssistant(
-        `Anotado! Resumo:\n\n👤 Cliente: ${name}\n🏢 Grupo: ${grupoNome}\n🏭 Fabricante: ${fabricanteNome}\n🚗 Modelo: ${modeloNome}\n📦 Categoria: ${text}\n\nEm breve mostrarei as peças compatíveis com seu veículo!`
-      );
-      setStep("summary");
+      sendToAI(text);
       setInput("");
       return;
     }
