@@ -91,7 +91,8 @@ export async function POST(request: Request) {
 
     if (inicioPecas !== -1 && fimPecas !== -1) {
       console.log('✅ Marcadores encontrados! Extraindo peças...');
-      // Separar resposta do cliente da parte estruturada
+      // Manter a resposta completa para o cliente (incluindo a análise técnica)
+      // Apenas remover a seção estruturada de peças
       respostaCliente = respostaIA.substring(0, inicioPecas).trim();
       
       // Extrair linhas de peças
