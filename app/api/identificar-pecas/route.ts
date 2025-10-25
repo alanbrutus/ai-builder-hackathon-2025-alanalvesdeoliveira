@@ -98,12 +98,35 @@ export async function POST(request: Request) {
       const secaoPecas = respostaIA.substring(inicioPecas + 27, fimPecas).trim();
       const linhas = secaoPecas.split('\n').filter((l: string) => l.trim());
 
+      let problemaAtual = '';
+      
       for (const linha of linhas) {
         if (linha.includes(';')) {
-          const [problema, peca] = linha.split(';').map((s: string) => s.trim());
-          if (problema && peca) {
-            problemasPecas.push({ problema, peca });
-            console.log(`   ✓ Peça extraída: ${problema} -> ${peca}`);
+          const partes = linha.split(';').map((s: string) => s.trim());
+          
+          // Se a linha começa com "Problema", extrair o problema
+          if (linha.toLowerCase().startsWith('problema')) {
+            problemaAtual = partes[1] || partes[0].replace(/^problema[:\s]*/i, '');
+            console.log(`   📌 Problema identificado: ${problemaAtual}`);
+          }
+          // Se a linha começa com "Peça", extrair as peças
+          else if (linha.toLowerCase().startsWith('peça')) {
+            // Pode ter múltiplas peças separadas por ;
+            for (let i = 1; i < partes.length; i++) {
+              const peca = partes[i].trim();
+              if (peca && problemaAtual) {
+                problemasPecas.push({ problema: problemaAtual, peca });
+                console.log(`   ✓ Peça extraída: ${problemaAtual} -> ${peca}`);
+              }
+            }
+          }
+          // Formato simples: Problema;Peça
+          else if (partes.length >= 2) {
+            const [problema, peca] = partes;
+            if (problema && peca) {
+              problemasPecas.push({ problema, peca });
+              console.log(`   ✓ Peça extraída: ${problema} -> ${peca}`);
+            }
           }
         }
       }
