@@ -40,12 +40,32 @@ export async function POST(request: Request) {
     promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloVeiculo);
 
     // Enviar para IA
+    const inicioTempo = Date.now();
     const resultadoIA = await sendToGemini(promptProcessado, mensagem);
+    const tempoResposta = Date.now() - inicioTempo;
+
+    // Registrar log da chamada
+    try {
+      await pool
+        .request()
+        .input('ConversaId', conversaId)
+        .input('MensagemCliente', mensagem)
+        .input('PromptEnviado', promptProcessado)
+        .input('RespostaIA', resultadoIA.response || null)
+        .input('Sucesso', resultadoIA.success ? 1 : 0)
+        .input('MensagemErro', resultadoIA.error || null)
+        .input('TempoResposta', tempoResposta)
+        .input('ModeloIA', 'gemini-pro')
+        .execute('AIHT_sp_RegistrarChamadaIA');
+    } catch (logError) {
+      console.error('Erro ao registrar log (não crítico):', logError);
+    }
 
     if (!resultadoIA.success || !resultadoIA.response) {
       return NextResponse.json({
         success: false,
-        error: resultadoIA.error || 'Erro ao processar com IA'
+        error: resultadoIA.error || 'Erro ao processar com IA',
+        promptEnviado: promptProcessado // Para debug
       }, { status: 500 });
     }
 
