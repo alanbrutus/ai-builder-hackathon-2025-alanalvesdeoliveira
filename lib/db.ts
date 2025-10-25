@@ -1,7 +1,10 @@
 import sql from 'mssql';
 
+// Configuração do SQL Server
+// Nota: Em JavaScript, \ precisa ser escapado como \\
+// Mas o driver SQL interpreta corretamente como .\ALYASQLEXPRESS
 const config: sql.config = {
-  server: '.\\ALYASQLEXPRESS',
+  server: String.raw`.\ALYASQLEXPRESS`,
   database: 'AI_Builder_Hackthon',
   user: 'AI_Hackthon',
   password: '41@H4ckth0n',
