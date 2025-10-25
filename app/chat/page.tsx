@@ -135,34 +135,13 @@ export default function ChatPage() {
 
     setChatStarted(true);
     
-    const grupoSelecionado = grupos.find(g => g.Id === parseInt(grupoId));
     const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
     const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
 
-    // Buscar e processar prompt de atendimento
-    try {
-      const response = await fetch('/api/prompts/atendimento');
-      const data = await response.json();
-      
-      if (data.success) {
-        let promptProcessado = data.data.ConteudoPrompt;
-        promptProcessado = promptProcessado.replace(/\{\{nome_cliente\}\}/g, name);
-        promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoSelecionado?.Nome || '');
-        promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteSelecionado?.Nome || '');
-        promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloSelecionado?.Nome || '');
-        
-        addAssistant(promptProcessado);
-      } else {
-        addAssistant(
-          `Olá ${name}! Vejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Como posso ajudar você hoje?`
-        );
-      }
-    } catch (error) {
-      console.error('Erro ao buscar prompt:', error);
-      addAssistant(
-        `Olá ${name}! Vejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Como posso ajudar você hoje?`
-      );
-    }
+    // Mensagem de boas-vindas simples (não mostra o prompt técnico)
+    addAssistant(
+      `Olá ${name}! 👋\n\nVejo que você tem um ${fabricanteSelecionado?.Nome} ${modeloSelecionado?.Nome}. Estou aqui para ajudar com peças e acessórios para o seu veículo.\n\nComo posso ajudar você hoje?`
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
