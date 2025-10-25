@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       .request()
       .input('NomeCliente', nomeCliente)
       .input('GrupoEmpresarialId', grupoEmpresarialId)
-      .input('FabricanteId', fabricanteId)
+      .input('MarcaId', fabricanteId)  // CORRIGIDO: MarcaId em vez de FabricanteId
       .input('ModeloId', modeloId)
       .execute('AIHT_sp_CriarConversa');
 

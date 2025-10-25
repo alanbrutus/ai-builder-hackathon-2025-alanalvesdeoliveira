@@ -1,0 +1,175 @@
+-- =============================================
+-- Script: Criar Tabelas de Conversas e Peças Identificadas
+-- Descrição: Sistema para rastrear conversas e peças mencionadas
+-- VERSÃO CORRIGIDA - Garante criação das tabelas
+-- =============================================
+
+USE AI_Builder_Hackthon;
+GO
+
+PRINT 'Iniciando criação das tabelas...';
+GO
+
+-- =============================================
+-- Tabela: AIHT_Conversas
+-- Descrição: Armazena as conversas dos clientes
+-- =============================================
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AIHT_Conversas]') AND type in (N'U'))
+BEGIN
+    PRINT 'Tabela AIHT_Conversas já existe. Pulando criação.';
+END
+ELSE
+BEGIN
+    CREATE TABLE [dbo].[AIHT_Conversas] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [NomeCliente] NVARCHAR(200) NOT NULL,
+        [GrupoEmpresarialId] INT NOT NULL,
+        [FabricanteId] INT NOT NULL,
+        [ModeloId] INT NOT NULL,
+        [DataInicio] DATETIME NOT NULL DEFAULT GETDATE(),
+        [DataUltimaInteracao] DATETIME NOT NULL DEFAULT GETDATE(),
+        [Status] NVARCHAR(50) NOT NULL DEFAULT 'Ativa',
+        [Ativo] BIT NOT NULL DEFAULT 1,
+        CONSTRAINT [FK_Conversas_GrupoEmpresarial] FOREIGN KEY ([GrupoEmpresarialId]) 
+            REFERENCES [dbo].[AIHT_GruposEmpresariais]([Id]),
+        CONSTRAINT [FK_Conversas_Fabricante] FOREIGN KEY ([FabricanteId]) 
+            REFERENCES [dbo].[AIHT_Fabricantes]([Id]),
+        CONSTRAINT [FK_Conversas_Modelo] FOREIGN KEY ([ModeloId]) 
+            REFERENCES [dbo].[AIHT_Modelos]([Id])
+    );
+    
+    PRINT 'Tabela AIHT_Conversas criada com sucesso!';
+END
+GO
+
+-- =============================================
+-- Tabela: AIHT_ProblemasIdentificados
+-- Descrição: Armazena problemas identificados nas conversas
+-- =============================================
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AIHT_ProblemasIdentificados]') AND type in (N'U'))
+BEGIN
+    PRINT 'Tabela AIHT_ProblemasIdentificados já existe. Pulando criação.';
+END
+ELSE
+BEGIN
+    CREATE TABLE [dbo].[AIHT_ProblemasIdentificados] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ConversaId] INT NOT NULL,
+        [DescricaoProblema] NVARCHAR(MAX) NOT NULL,
+        [DataIdentificacao] DATETIME NOT NULL DEFAULT GETDATE(),
+        [Ativo] BIT NOT NULL DEFAULT 1,
+        CONSTRAINT [FK_Problemas_Conversa] FOREIGN KEY ([ConversaId]) 
+            REFERENCES [dbo].[AIHT_Conversas]([Id])
+    );
+    
+    PRINT 'Tabela AIHT_ProblemasIdentificados criada com sucesso!';
+END
+GO
+
+-- =============================================
+-- Tabela: AIHT_PecasIdentificadas
+-- Descrição: Armazena peças identificadas para cada problema
+-- =============================================
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[AIHT_PecasIdentificadas]') AND type in (N'U'))
+BEGIN
+    PRINT 'Tabela AIHT_PecasIdentificadas já existe. Pulando criação.';
+END
+ELSE
+BEGIN
+    CREATE TABLE [dbo].[AIHT_PecasIdentificadas] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ConversaId] INT NOT NULL,
+        [ProblemaId] INT NULL,
+        [NomePeca] NVARCHAR(200) NOT NULL,
+        [CategoriaPeca] NVARCHAR(100) NULL,
+        [Prioridade] NVARCHAR(50) NULL,
+        [DataIdentificacao] DATETIME NOT NULL DEFAULT GETDATE(),
+        [Ativo] BIT NOT NULL DEFAULT 1,
+        CONSTRAINT [FK_Pecas_Conversa] FOREIGN KEY ([ConversaId]) 
+            REFERENCES [dbo].[AIHT_Conversas]([Id]),
+        CONSTRAINT [FK_Pecas_Problema] FOREIGN KEY ([ProblemaId]) 
+            REFERENCES [dbo].[AIHT_ProblemasIdentificados]([Id])
+    );
+    
+    PRINT 'Tabela AIHT_PecasIdentificadas criada com sucesso!';
+END
+GO
+
+PRINT 'Verificando tabelas criadas...';
+GO
+
+-- Verificar criação
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'AIHT_Conversas')
+    PRINT '✓ AIHT_Conversas criada';
+ELSE
+    PRINT '✗ ERRO: AIHT_Conversas NÃO foi criada';
+
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'AIHT_ProblemasIdentificados')
+    PRINT '✓ AIHT_ProblemasIdentificados criada';
+ELSE
+    PRINT '✗ ERRO: AIHT_ProblemasIdentificados NÃO foi criada';
+
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'AIHT_PecasIdentificadas')
+    PRINT '✓ AIHT_PecasIdentificadas criada';
+ELSE
+    PRINT '✗ ERRO: AIHT_PecasIdentificadas NÃO foi criada';
+GO
+
+-- =============================================
+-- Inserir novo prompt para identificação de problemas e peças
+-- =============================================
+IF NOT EXISTS (SELECT 1 FROM AIHT_Prompts WHERE Contexto = 'identificacao_pecas')
+BEGIN
+    INSERT INTO AIHT_Prompts (
+        Contexto,
+        ConteudoPrompt,
+        Descricao,
+        Versao,
+        Ativo
+    )
+    VALUES (
+        'identificacao_pecas',
+        'Preciso que a partir dessa conversa identifique o que é um relato de problema automotivo para o {{grupo_empresarial}}, {{fabricante_veiculo}}, {{modelo_veiculo}} e peças mencionadas ou que podem ser causadoras deste problema e me retorne isso em uma lista no formato:
+Problema;Peça
+
+Exemplo de resposta esperada:
+Barulho ao frear;Pastilha de freio
+Barulho ao frear;Disco de freio
+
+Caso não identifique um relato de problema retorne perguntando qual o problema ou a peça desejada.
+
+IMPORTANTE: Retorne APENAS a lista no formato especificado (Problema;Peça) ou a pergunta. Não adicione explicações extras.',
+        'Prompt para identificar problemas e peças a partir da conversa do cliente',
+        1,
+        1
+    );
+    
+    PRINT 'Prompt de identificação de peças inserido com sucesso!';
+END
+ELSE
+BEGIN
+    PRINT 'Prompt de identificação de peças já existe.';
+END
+GO
+
+-- =============================================
+-- Conceder permissões ao usuário AI_Hackthon
+-- =============================================
+GRANT SELECT ON dbo.AIHT_Conversas TO AI_Hackthon;
+GRANT INSERT ON dbo.AIHT_Conversas TO AI_Hackthon;
+GRANT UPDATE ON dbo.AIHT_Conversas TO AI_Hackthon;
+
+GRANT SELECT ON dbo.AIHT_ProblemasIdentificados TO AI_Hackthon;
+GRANT INSERT ON dbo.AIHT_ProblemasIdentificados TO AI_Hackthon;
+
+GRANT SELECT ON dbo.AIHT_PecasIdentificadas TO AI_Hackthon;
+GRANT INSERT ON dbo.AIHT_PecasIdentificadas TO AI_Hackthon;
+
+PRINT 'Permissões concedidas com sucesso!';
+GO
+
+PRINT '========================================';
+PRINT 'Script executado com sucesso!';
+PRINT 'Execute o próximo script para criar as Stored Procedures';
+PRINT '========================================';
+GO
