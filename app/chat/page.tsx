@@ -166,6 +166,42 @@ export default function ChatPage() {
     }
   };
 
+  const loadPromptAtendimento = async (modeloNomeParam: string) => {
+    setLoading(true);
+    try {
+      // Buscar prompt do banco de dados
+      const response = await fetch('/api/prompts/atendimento');
+      const data = await response.json();
+      
+      if (data.success) {
+        // Substituir variáveis no prompt
+        let promptProcessado = data.data.ConteudoPrompt;
+        promptProcessado = promptProcessado.replace(/\{\{nome_cliente\}\}/g, name);
+        promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoNome);
+        promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteNome);
+        promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloNomeParam);
+        
+        addAssistant(promptProcessado);
+        setStep("select_categoria");
+      } else {
+        // Fallback caso o prompt não seja encontrado
+        addAssistant(
+          `Excelente, ${name}! Você possui um ${fabricanteNome} ${modeloNomeParam} do grupo ${grupoNome}.\n\nAgora, em qual categoria de peças você está interessado?\n\n• Motor\n• Suspensão\n• Freios\n• Transmissão\n• Elétrica\n• Carroceria\n• Filtros\n• Iluminação\n• Arrefecimento\n• Escapamento`
+        );
+        setStep("select_categoria");
+      }
+    } catch (error) {
+      console.error('Erro ao carregar prompt:', error);
+      // Fallback em caso de erro
+      addAssistant(
+        `Excelente, ${name}! Você possui um ${fabricanteNome} ${modeloNomeParam} do grupo ${grupoNome}.\n\nAgora, em qual categoria de peças você está interessado?\n\n• Motor\n• Suspensão\n• Freios\n• Transmissão\n• Elétrica\n• Carroceria\n• Filtros\n• Iluminação\n• Arrefecimento\n• Escapamento`
+      );
+      setStep("select_categoria");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
@@ -207,10 +243,7 @@ export default function ChatPage() {
       setModeloId(option.id);
       setModeloNome(option.label);
       addUser(option.label);
-      addAssistant(
-        `Excelente, ${name}! Você possui um ${fabricanteNome} ${option.label} do grupo ${grupoNome}.\n\nAgora, em qual categoria de peças você está interessado?\n\n• Motor\n• Suspensão\n• Freios\n• Transmissão\n• Elétrica\n• Carroceria\n• Filtros\n• Iluminação\n• Arrefecimento\n• Escapamento`
-      );
-      setStep("select_categoria");
+      loadPromptAtendimento(option.label);
     }
   };
 
