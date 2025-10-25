@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 type Role = "assistant" | "user";
 
@@ -227,6 +228,14 @@ Ajude com: ${text}`;
       {/* Sidebar - Formulário */}
       <div className="w-80 bg-gray-50 border-r border-gray-200 p-6 overflow-y-auto">
         <div className="mb-6">
+          <Image
+            src="/images/AutoPartAI.jpg"
+            alt="AutoParts AI"
+            width={240}
+            height={80}
+            className="mb-4 rounded-lg"
+            priority
+          />
           <Link href="/" className="text-blue-600 hover:underline text-sm">
             ← Voltar ao início
           </Link>
@@ -329,9 +338,18 @@ Ajude com: ${text}`;
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col">
-        <div className="bg-white border-b border-gray-200 p-4">
-          <h1 className="text-2xl font-semibold text-gray-900">Chat com IA</h1>
-          <p className="text-sm text-gray-500 mt-1">AutoParts AI - Assistente Virtual</p>
+        <div className="bg-white border-b border-gray-200 p-4 flex items-center gap-4">
+          <Image
+            src="/images/AutoPartAI.jpg"
+            alt="AutoParts AI"
+            width={60}
+            height={60}
+            className="rounded-lg"
+          />
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Chat com IA</h1>
+            <p className="text-sm text-gray-500 mt-1">AutoParts AI - Assistente Virtual</p>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
