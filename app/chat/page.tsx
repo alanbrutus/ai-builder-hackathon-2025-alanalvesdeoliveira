@@ -192,6 +192,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           conversaId: conversaId,
           mensagem: text,
+          nomeCliente: name,
           grupoEmpresarial: grupoSelecionado?.Nome || '',
           fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
           modeloVeiculo: modeloSelecionado?.Nome || ''

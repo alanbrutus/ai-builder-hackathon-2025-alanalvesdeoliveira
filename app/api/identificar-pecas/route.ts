@@ -6,13 +6,14 @@ export async function POST(request: Request) {
   try {
     const { 
       conversaId,
-      mensagem, 
+      mensagem,
+      nomeCliente,
       grupoEmpresarial, 
       fabricanteVeiculo, 
       modeloVeiculo 
     } = await request.json();
 
-    if (!conversaId || !mensagem || !grupoEmpresarial || !fabricanteVeiculo || !modeloVeiculo) {
+    if (!conversaId || !mensagem || !nomeCliente || !grupoEmpresarial || !fabricanteVeiculo || !modeloVeiculo) {
       return NextResponse.json({
         success: false,
         error: 'Dados incompletos'
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
     promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoEmpresarial);
     promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteVeiculo);
     promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloVeiculo);
+    promptProcessado = promptProcessado.replace(/\{\{mensagem\}\}/g, mensagem);
+    promptProcessado = promptProcessado.replace(/\{\{nome_cliente\}\}/g, nomeCliente);
 
     // Enviar para IA
     const inicioTempo = Date.now();
