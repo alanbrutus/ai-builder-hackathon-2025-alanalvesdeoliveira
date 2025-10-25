@@ -10,10 +10,11 @@ export interface Fabricante {
 
 export async function GET(
   request: Request,
-  { params }: { params: { grupoId: string } }
+  { params }: { params: Promise<{ grupoId: string }> }
 ) {
   try {
-    const grupoId = parseInt(params.grupoId);
+    const { grupoId: grupoIdStr } = await params;
+    const grupoId = parseInt(grupoIdStr);
 
     if (isNaN(grupoId)) {
       return NextResponse.json(

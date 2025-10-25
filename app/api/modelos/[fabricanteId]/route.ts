@@ -12,10 +12,11 @@ export interface Modelo {
 
 export async function GET(
   request: Request,
-  { params }: { params: { fabricanteId: string } }
+  { params }: { params: Promise<{ fabricanteId: string }> }
 ) {
   try {
-    const fabricanteId = parseInt(params.fabricanteId);
+    const { fabricanteId: fabricanteIdStr } = await params;
+    const fabricanteId = parseInt(fabricanteIdStr);
 
     if (isNaN(fabricanteId)) {
       return NextResponse.json(

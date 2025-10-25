@@ -14,10 +14,10 @@ export interface Prompt {
 
 export async function GET(
   request: Request,
-  { params }: { params: { contexto: string } }
+  { params }: { params: Promise<{ contexto: string }> }
 ) {
   try {
-    const contexto = params.contexto;
+    const { contexto } = await params;
 
     const prompts = await executeStoredProcedure<Prompt>(
       'AIHT_sp_BuscarPromptPorContexto',
