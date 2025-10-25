@@ -200,14 +200,7 @@ export default function ChatPage() {
 
       const identificacaoData = await identificacaoResponse.json();
 
-      // Se não identificou peças, usar resposta direta da IA
-      if (!identificacaoData.identificado) {
-        addAssistant(identificacaoData.mensagem || "Como posso ajudar você?");
-        setLoading(false);
-        return;
-      }
-
-      // Se identificou peças, buscar recomendações
+      // Sempre buscar recomendações da IA, independente de ter identificado peças
       const promptResponse = await fetch('/api/prompts/recomendacao');
       const promptData = await promptResponse.json();
       
@@ -242,11 +235,16 @@ Ajude com: ${text}`;
         // Adicionar informação sobre peças identificadas
         let resposta = aiData.response;
         
-        if (identificacaoData.pecas && identificacaoData.pecas.length > 0) {
-          resposta += `\n\n📋 **Peças identificadas para seu veículo:**\n`;
+        if (identificacaoData.success && identificacaoData.identificado && identificacaoData.pecas && identificacaoData.pecas.length > 0) {
+          resposta += `\n\n📋 **Peças identificadas e registradas:**\n`;
           identificacaoData.pecas.forEach((peca: any) => {
-            resposta += `• ${peca.NomePeca}\n`;
+            resposta += `• ${peca.NomePeca}`;
+            if (peca.DescricaoProblema) {
+              resposta += ` (${peca.DescricaoProblema})`;
+            }
+            resposta += `\n`;
           });
+          resposta += `\n💡 Essas peças foram salvas e você pode consultá-las depois!`;
         }
         
         addAssistant(resposta);
