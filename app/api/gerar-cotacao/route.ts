@@ -51,20 +51,37 @@ async function parsearESalvarCotacoes(
       if (!dentroDeSecaoPeca) continue;
 
       // Detectar tipo de cotação (suporta múltiplos formatos)
-      // Formato 1: "?? **Tipo:** e-Commerce"
-      // Formato 2: "**🛒 Opções e-Commerce:**"
-      // Formato 3: "**Tipo:** e-Commerce"
-      const isEcommerce = linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
-                          linha.match(/\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
-                          linha.includes('e-Commerce') || 
-                          linha.includes('e-commerce') ||
-                          linha.includes('E-Commerce');
+      // FORMATO SOLICITADO NO PROMPT:
+      // "?? **Tipo:** e-Commerce" ou "?? **Tipo:** Loja Física"
+      // 
+      // FORMATO QUE A IA RETORNA:
+      // "* **E-commerce - Opção 1 (Custo-Benefício)**"
+      // "* **Loja Física - Opção (Consulta Local)**"
+      //
+      // OUTROS FORMATOS POSSÍVEIS:
+      // "**🛒 Opções e-Commerce:**"
+      // "**Tipo:** e-Commerce"
       
-      const isLojaFisica = linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
-                           linha.match(/\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
-                           linha.includes('Loja Física') || 
-                           linha.includes('loja física') ||
-                           linha.includes('Loja Fisica');
+      const isEcommerce = 
+        // Formato solicitado: ?? **Tipo:** e-Commerce
+        linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
+        linha.match(/\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
+        // Formato que a IA retorna: * **E-commerce - Opção
+        linha.match(/^\s*\*\s*\*\*E-commerce\s*-\s*Opção/i) ||
+        linha.match(/^\s*\*\s*\*\*e-Commerce\s*-\s*Opção/i) ||
+        // Outros formatos
+        linha.match(/🛒.*e-Commerce/i) ||
+        linha.match(/Opções\s+e-Commerce/i);
+      
+      const isLojaFisica = 
+        // Formato solicitado: ?? **Tipo:** Loja Física
+        linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
+        linha.match(/\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
+        // Formato que a IA retorna: * **Loja Física - Opção
+        linha.match(/^\s*\*\s*\*\*Loja\s+F[ií]sica\s*-\s*Opção/i) ||
+        // Outros formatos
+        linha.match(/📍.*Loja\s+F[ií]sica/i) ||
+        linha.match(/Opções\s+Loja\s+F[ií]sica/i);
 
       if (isEcommerce) {
         if (cotacaoAtual.tipoCotacao) {
@@ -84,26 +101,43 @@ async function parsearESalvarCotacoes(
         console.log(`   🏪 Tipo detectado: Loja Física para ${nomePecaAtual}`);
       }
 
-      // Extrair link (e-commerce) - formato: "?? **Link/Endereço:** [URL]"
-      if (linha.match(/\?\?\s*\*\*\s*Link\/Endereço:\s*\*\*/i) || linha.match(/Link\/Endereço:/i)) {
-        const linkMatch = linha.match(/(https?:\/\/[^\s\)]+)/);
+      // Extrair link (e-commerce) - múltiplos formatos
+      // Formato 1: "?? **Link/Endereço:** [URL]"
+      // Formato 2: "* **Link/Endereço:** [Exemplo: URL](URL)"
+      if (linha.match(/\?\?\s*\*\*\s*Link\/Endereço:\s*\*\*/i) || 
+          linha.match(/\*\s*\*\*Link\/Endereço:\s*\*\*/i) ||
+          linha.match(/Link\/Endereço:/i)) {
+        const linkMatch = linha.match(/(https?:\/\/[^\s\)\]]+)/);
         if (linkMatch && !cotacaoAtual.link) {
           cotacaoAtual.link = linkMatch[1];
           console.log(`   🔗 Link extraído: ${linkMatch[1].substring(0, 50)}...`);
         }
       } else if (linha.includes('http://') || linha.includes('https://')) {
-        const linkMatch = linha.match(/(https?:\/\/[^\s\)]+)/);
+        const linkMatch = linha.match(/(https?:\/\/[^\s\)\]]+)/);
         if (linkMatch && !cotacaoAtual.link) {
           cotacaoAtual.link = linkMatch[1];
         }
       }
 
-      // Extrair endereço (loja física) - formato: "?? **Link/Endereço:** [Endereço]"
-      if (linha.match(/\?\?\s*\*\*\s*Link\/Endereço:\s*\*\*/i) && cotacaoAtual.tipoCotacao === 'Loja Física') {
-        const enderecoMatch = linha.match(/Link\/Endereço:\s*\*\*\s*(.+)/i);
-        if (enderecoMatch && !cotacaoAtual.endereco) {
-          cotacaoAtual.endereco = enderecoMatch[1].replace(/\*/g, '').trim();
-          console.log(`   📍 Endereço extraído: ${cotacaoAtual.endereco.substring(0, 50)}...`);
+      // Extrair endereço (loja física) - múltiplos formatos
+      // Formato 1: "?? **Link/Endereço:** [Endereço]"
+      // Formato 2: "* **Link/Endereço:** **Nome Loja** - Endereço completo"
+      if ((linha.match(/\?\?\s*\*\*\s*Link\/Endereço:\s*\*\*/i) || 
+           linha.match(/\*\s*\*\*Link\/Endereço:\s*\*\*/i)) && 
+          cotacaoAtual.tipoCotacao === 'Loja Física') {
+        // Extrair nome da loja e endereço
+        const lojaEnderecoMatch = linha.match(/Link\/Endereço:\s*\*\*\s*([^*]+)\*\*\s*-\s*(.+)/i);
+        if (lojaEnderecoMatch) {
+          cotacaoAtual.nomeLoja = lojaEnderecoMatch[1].trim();
+          cotacaoAtual.endereco = lojaEnderecoMatch[2].replace(/\*/g, '').trim();
+          console.log(`   🏪 Loja: ${cotacaoAtual.nomeLoja}`);
+          console.log(`   📍 Endereço: ${cotacaoAtual.endereco.substring(0, 50)}...`);
+        } else {
+          const enderecoMatch = linha.match(/Link\/Endereço:\s*\*?\*?\s*(.+)/i);
+          if (enderecoMatch && !cotacaoAtual.endereco) {
+            cotacaoAtual.endereco = enderecoMatch[1].replace(/\*/g, '').trim();
+            console.log(`   📍 Endereço extraído: ${cotacaoAtual.endereco.substring(0, 50)}...`);
+          }
         }
       } else if (linha.includes('Endereço:') || linha.match(/[A-Z][a-z]+\s+[A-Z][a-z]+.*\d+.*-.*,/)) {
         const enderecoMatch = linha.match(/:\s*(.+)/);
@@ -114,17 +148,12 @@ async function parsearESalvarCotacoes(
         }
       }
 
-      // Extrair nome da peça - formato: "?? **Nome da Peça:** [Nome]"
-      if (linha.match(/\?\?\s*\*\*\s*Nome da Peça:\s*\*\*/i)) {
-        const nomeMatch = linha.match(/Nome da Peça:\s*\*\*\s*(.+)/i);
-        if (nomeMatch && !cotacaoAtual.nomePecaCompleto) {
-          cotacaoAtual.nomePecaCompleto = nomeMatch[1].replace(/\*/g, '').trim();
-        }
-      }
-
-      // Extrair código - formato: "?? **Código:** [Código]"
-      if (linha.match(/\?\?\s*\*\*\s*Código:\s*\*\*/i)) {
-        const codigoMatch = linha.match(/Código:\s*\*\*\s*(.+)/i);
+      // Extrair código - múltiplos formatos
+      // Formato 1: "?? **Código:** [Código]"
+      // Formato 2: "* **Código:** [Código]"
+      if (linha.match(/\?\?\s*\*\*\s*Código:\s*\*\*/i) || 
+          linha.match(/\*\s*\*\*Código:\s*\*\*/i)) {
+        const codigoMatch = linha.match(/Código:\s*\*?\*?\s*(.+)/i);
         if (codigoMatch && !cotacaoAtual.codigo) {
           cotacaoAtual.codigo = codigoMatch[1].replace(/\*/g, '').trim();
         }
@@ -139,8 +168,13 @@ async function parsearESalvarCotacoes(
       }
 
       // Extrair preço (suporta múltiplos formatos)
-      // Formato: "?? **Preço:** R$ 150,00 - R$ 200,00"
-      if (linha.match(/\?\?\s*\*\*\s*Preço:/i) || linha.includes('R$') || linha.includes('Preço:') || linha.match(/💰|💵/)) {
+      // Formato 1: "?? **Preço:** R$ 150,00 - R$ 200,00"
+      // Formato 2: "* **Preço:** R$ 150,00 - R$ 200,00"
+      if (linha.match(/\?\?\s*\*\*\s*Preço:/i) || 
+          linha.match(/\*\s*\*\*Preço:/i) || 
+          linha.includes('R$') || 
+          linha.includes('Preço:') || 
+          linha.match(/💰|💵/)) {
         // Faixa de preço: R$ 150,00 - R$ 200,00 ou R$ 150 - R$ 200
         const faixaMatch = linha.match(/R\$\s*([\d.,]+)\s*-\s*R\$\s*([\d.,]+)/);
         if (faixaMatch && !cotacaoAtual.precoMinimo) {
@@ -161,8 +195,11 @@ async function parsearESalvarCotacoes(
       }
 
       // Extrair condições de pagamento (múltiplos formatos)
-      // Formato: "?? **Condições de Pagamento:** [texto]"
-      if (linha.match(/\?\?\s*\*\*\s*Condições de Pagamento:/i) || linha.match(/Condições de Pagamento:|Pagamento:|💳/i)) {
+      // Formato 1: "?? **Condições de Pagamento:** [texto]"
+      // Formato 2: "* **Condições de Pagamento:** [texto]"
+      if (linha.match(/\?\?\s*\*\*\s*Condições de Pagamento:/i) || 
+          linha.match(/\*\s*\*\*Condições de Pagamento:/i) ||
+          linha.match(/Condições de Pagamento:|Pagamento:|💳/i)) {
         const pagamentoMatch = linha.match(/(?:Condições de )?Pagamento:\s*\*?\*?\s*(.+)/i);
         if (pagamentoMatch && !cotacaoAtual.condicoesPagamento) {
           cotacaoAtual.condicoesPagamento = pagamentoMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
@@ -170,8 +207,12 @@ async function parsearESalvarCotacoes(
       }
 
       // Extrair observações (múltiplos formatos)
-      // Formato: "? **Observações:** [texto]"
-      if (linha.match(/\?\s*\*\*\s*Observações:/i) || linha.match(/^\s*\*\s+\*\*Observações/i) || linha.match(/^📝\s*\*\*Observações/i)) {
+      // Formato 1: "? **Observações:** [texto]"
+      // Formato 2: "* **Observações:** [texto]"
+      if (linha.match(/\?\s*\*\*\s*Observações:/i) || 
+          linha.match(/\*\s*\*\*Observações:/i) ||
+          linha.match(/^\s*\*\s+\*\*Observações/i) || 
+          linha.match(/^📝\s*\*\*Observações/i)) {
         const obsMatch = linha.match(/Observações:\s*\*?\*?\s*(.+)/i);
         if (obsMatch && !cotacaoAtual.observacoes) {
           cotacaoAtual.observacoes = obsMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
@@ -182,7 +223,7 @@ async function parsearESalvarCotacoes(
       } else if (cotacaoAtual.dentroObservacoes && linha.match(/^\s*\*/)) {
         // Capturar linhas de observação
         const obsTexto = linha.replace(/^\s*\*\s*\*?\*?/, '').replace(/\*\*/g, '').trim();
-        if (obsTexto && obsTexto.length > 5) {
+        if (obsTexto && obsTexto.length > 5 && !obsTexto.match(/^\*\*[A-Z]/)) {
           if (!cotacaoAtual.observacoes) {
             cotacaoAtual.observacoes = obsTexto;
           } else {
