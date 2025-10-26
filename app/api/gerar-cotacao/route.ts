@@ -41,14 +41,24 @@ async function parsearESalvarCotacoes(
 
       if (!dentroDeSecaoPeca) continue;
 
-      // Detectar tipo de cotação
-      if (linha.includes('**🛒 Opções e-Commerce:**') || linha.includes('Opções e-Commerce')) {
+      // Detectar tipo de cotação (suporta múltiplos formatos)
+      const isEcommerce = linha.includes('e-Commerce') || 
+                          linha.includes('e-commerce') ||
+                          linha.includes('E-Commerce') ||
+                          linha.match(/\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i);
+      
+      const isLojaFisica = linha.includes('Loja Física') || 
+                           linha.includes('loja física') ||
+                           linha.includes('Loja Fisica') ||
+                           linha.match(/\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i);
+
+      if (isEcommerce) {
         if (cotacaoAtual.tipoCotacao) {
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
           totalSalvas++;
         }
         cotacaoAtual = { nomePeca: nomePecaAtual, tipoCotacao: 'E-Commerce' };
-      } else if (linha.includes('**📍 Opções Loja Física') || linha.includes('Opções Loja Física')) {
+      } else if (isLojaFisica) {
         if (cotacaoAtual.tipoCotacao) {
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
           totalSalvas++;
@@ -82,43 +92,62 @@ async function parsearESalvarCotacoes(
         }
       }
 
-      // Extrair preço
-      if (linha.includes('R$') || linha.includes('Preço:')) {
-        // Faixa de preço: R$ 150,00 - R$ 200,00
+      // Extrair preço (suporta múltiplos formatos)
+      if (linha.includes('R$') || linha.includes('Preço:') || linha.match(/💰|💵/)) {
+        // Faixa de preço: R$ 150,00 - R$ 200,00 ou R$ 150 - R$ 200
         const faixaMatch = linha.match(/R\$\s*([\d.,]+)\s*-\s*R\$\s*([\d.,]+)/);
-        if (faixaMatch) {
-          cotacaoAtual.precoMinimo = parseFloat(faixaMatch[1].replace('.', '').replace(',', '.'));
-          cotacaoAtual.precoMaximo = parseFloat(faixaMatch[2].replace('.', '').replace(',', '.'));
+        if (faixaMatch && !cotacaoAtual.precoMinimo) {
+          const min = faixaMatch[1].replace(/\./g, '').replace(',', '.');
+          const max = faixaMatch[2].replace(/\./g, '').replace(',', '.');
+          cotacaoAtual.precoMinimo = parseFloat(min);
+          cotacaoAtual.precoMaximo = parseFloat(max);
         } else {
           // Preço único: R$ 189,90
-          const unicoMatch = linha.match(/R\$\s*([\d.,]+)/);
-          if (unicoMatch && !cotacaoAtual.preco) {
-            cotacaoAtual.preco = parseFloat(unicoMatch[1].replace('.', '').replace(',', '.'));
+          const unicoMatch = linha.match(/R\$\s*([\d.,]+)(?!\s*-)/);
+          if (unicoMatch && !cotacaoAtual.preco && !cotacaoAtual.precoMinimo) {
+            const preco = unicoMatch[1].replace(/\./g, '').replace(',', '.');
+            cotacaoAtual.preco = parseFloat(preco);
           }
         }
       }
 
-      // Extrair condições de pagamento
-      if (linha.includes('Condições de Pagamento:') || linha.includes('Pagamento:')) {
-        const pagamentoMatch = linha.match(/Pagamento:\s*\*\*\s*(.+)/);
-        if (pagamentoMatch) {
-          cotacaoAtual.condicoesPagamento = pagamentoMatch[1].replace(/\*\*/g, '').trim();
+      // Extrair condições de pagamento (múltiplos formatos)
+      if (linha.match(/Condições de Pagamento:|Pagamento:|💳/i)) {
+        const pagamentoMatch = linha.match(/(?:Condições de )?Pagamento:\s*\*?\*?\s*(.+)/i);
+        if (pagamentoMatch && !cotacaoAtual.condicoesPagamento) {
+          cotacaoAtual.condicoesPagamento = pagamentoMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
         }
       }
 
-      // Extrair disponibilidade
-      if (linha.includes('Disponibilidade:')) {
-        const dispMatch = linha.match(/Disponibilidade:\s*\*\*\s*(.+)/);
-        if (dispMatch) {
-          cotacaoAtual.disponibilidade = dispMatch[1].replace(/\*\*/g, '').trim();
+      // Extrair disponibilidade (múltiplos formatos)
+      if (linha.match(/Disponibilidade:|📦|✅/i)) {
+        const dispMatch = linha.match(/Disponibilidade:\s*\*?\*?\s*(.+)/i);
+        if (dispMatch && !cotacaoAtual.disponibilidade) {
+          cotacaoAtual.disponibilidade = dispMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
         }
       }
 
-      // Extrair prazo de entrega
-      if (linha.includes('Prazo de Entrega:')) {
-        const prazoMatch = linha.match(/Prazo de Entrega:\s*\*\*\s*(.+)/);
-        if (prazoMatch) {
-          cotacaoAtual.prazoEntrega = prazoMatch[1].replace(/\*\*/g, '').trim();
+      // Extrair prazo de entrega (múltiplos formatos)
+      if (linha.match(/Prazos? de Entrega:|🚚|📅/i)) {
+        const prazoMatch = linha.match(/Prazos? de Entrega:\s*\*?\*?\s*(.+)/i);
+        if (prazoMatch && !cotacaoAtual.prazoEntrega) {
+          cotacaoAtual.prazoEntrega = prazoMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
+        }
+      }
+      
+      // Extrair observações gerais (seção de observações)
+      if (linha.match(/^\s*\*\s+\*\*Observações/i) || linha.match(/^📝\s*\*\*Observações/i)) {
+        // Marcar que entramos na seção de observações
+        cotacaoAtual.dentroObservacoes = true;
+      } else if (cotacaoAtual.dentroObservacoes && linha.match(/^\s*\*/)) {
+        // Capturar linhas de observação
+        const obsTexto = linha.replace(/^\s*\*\s*\*?\*?/, '').replace(/\*\*/g, '').trim();
+        if (obsTexto && obsTexto.length > 5) {
+          if (!cotacaoAtual.observacoes) {
+            cotacaoAtual.observacoes = obsTexto;
+          } else {
+            cotacaoAtual.observacoes += '; ' + obsTexto;
+          }
         }
       }
     }
