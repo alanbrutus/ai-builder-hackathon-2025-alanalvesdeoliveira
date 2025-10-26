@@ -65,6 +65,9 @@ async function reprocessarCotacoes() {
 
     // 1. Buscar logs incorretos
     console.log('🔍 Buscando logs finalizados incorretamente...');
+    console.log('   Query: UPPER(LTRIM(RTRIM(MensagemCliente))) IN (palavras_cotacao)');
+    console.log('   AND PromptEnviado LIKE \'Você está finalizando%\'\n');
+    
     const logsIncorretos = await pool.request().query(`
       SELECT 
         l.Id AS LogId,
@@ -88,7 +91,15 @@ async function reprocessarCotacoes() {
     `);
 
     const logs = logsIncorretos.recordset;
-    console.log(`   Encontrados: ${logs.length} logs para reprocessar\n`);
+    console.log(`   ✅ Encontrados: ${logs.length} logs para reprocessar`);
+    
+    if (logs.length > 0) {
+      console.log('\n   📋 Logs encontrados:');
+      logs.forEach((log, i) => {
+        console.log(`      ${i+1}. Log ${log.LogId} - Conversa ${log.ConversaId} - "${log.MensagemCliente}"`);
+      });
+    }
+    console.log('');
 
     if (logs.length === 0) {
       console.log('✅ Nenhum log para reprocessar!');
@@ -156,7 +167,15 @@ async function reprocessarCotacoes() {
 
         // 3.3. Chamar IA
         console.log('   🤖 Gerando cotação com IA...');
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = genAI.getGenerativeModel({ 
+          model: 'gemini-2.0-flash-exp',
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+          }
+        });
         const startTime = Date.now();
         const result = await model.generateContent(promptCotacao);
         const response = await result.response;
