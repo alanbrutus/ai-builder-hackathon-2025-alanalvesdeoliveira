@@ -238,24 +238,39 @@ export default function ChatPage() {
 
           // GERAR COTAÇÃO AUTOMATICAMENTE APÓS IDENTIFICAÇÃO
           console.log('💰 Gerando cotação automaticamente...');
+          console.log('   ConversaId:', conversaId);
           
-          const cotacaoResponse = await fetch('/api/gerar-cotacao', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              conversaId: conversaId,
-              mensagemCliente: 'cotação automática'
-            })
-          });
-          
-          const cotacaoData = await cotacaoResponse.json();
-          
-          if (cotacaoData.success && cotacaoData.cotacao) {
-            console.log('✅ Cotação gerada automaticamente!');
-            addAssistant(cotacaoData.cotacao);
-          } else if (cotacaoData.mensagem) {
-            console.log('ℹ️ Mensagem da cotação:', cotacaoData.mensagem);
-            addAssistant(cotacaoData.mensagem);
+          try {
+            const cotacaoResponse = await fetch('/api/gerar-cotacao', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversaId: conversaId,
+                mensagemCliente: 'cotação automática'
+              })
+            });
+            
+            console.log('   Status da resposta:', cotacaoResponse.status);
+            
+            const cotacaoData = await cotacaoResponse.json();
+            console.log('   Dados da cotação:', cotacaoData);
+            
+            if (cotacaoData.success && cotacaoData.cotacao) {
+              console.log('✅ Cotação gerada automaticamente!');
+              console.log('   Cotações salvas:', cotacaoData.cotacoesSalvas);
+              addAssistant(cotacaoData.cotacao);
+            } else if (cotacaoData.mensagem) {
+              console.log('ℹ️ Mensagem da cotação:', cotacaoData.mensagem);
+              addAssistant(cotacaoData.mensagem);
+            } else if (cotacaoData.error) {
+              console.error('❌ Erro ao gerar cotação:', cotacaoData.error);
+              console.error('   Tipo:', cotacaoData.errorType);
+              console.error('   Code:', cotacaoData.errorCode);
+              addAssistant(`Desculpe, ocorreu um erro ao gerar a cotação: ${cotacaoData.error}`);
+            }
+          } catch (error) {
+            console.error('❌ ERRO CRÍTICO ao chamar API de cotação:', error);
+            addAssistant('Desculpe, ocorreu um erro ao gerar a cotação. Tente novamente.');
           }
         } else {
           console.error('❌ Erro na API:', identificacaoData.error);

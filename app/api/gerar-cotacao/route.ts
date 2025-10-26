@@ -475,16 +475,42 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
     }
 
     // 4. Buscar informações do veículo da conversa
-    const conversaResult = await pool
-      .request()
-      .input('ConversaId', conversaId)
-      .query('SELECT VeiculoMarca, VeiculoModelo FROM AIHT_Conversas WHERE Id = @ConversaId');
+    console.log('🚗 Buscando informações do veículo...');
+    
+    let conversaResult;
+    try {
+      conversaResult = await pool
+        .request()
+        .input('ConversaId', conversaId)
+        .query(`
+          SELECT 
+            c.Id,
+            m.Nome AS ModeloVeiculo,
+            marc.Nome AS MarcaVeiculo
+          FROM AIHT_Conversas c
+          LEFT JOIN AIHT_Modelos m ON c.ModeloId = m.Id
+          LEFT JOIN AIHT_Marcas marc ON m.MarcaId = marc.Id
+          WHERE c.Id = @ConversaId
+        `);
+    } catch (error) {
+      console.error('❌ Erro ao buscar informações do veículo:', error);
+      throw error;
+    }
     
     const conversa = conversaResult.recordset[0];
-    const fabricanteVeiculo = conversa?.VeiculoMarca || 'Veículo';
-    const modeloVeiculo = conversa?.VeiculoModelo || '';
     
-    console.log(`🚗 Veículo: ${fabricanteVeiculo} ${modeloVeiculo}`);
+    if (!conversa) {
+      console.error('❌ Conversa não encontrada!');
+      return NextResponse.json({
+        success: false,
+        error: 'Conversa não encontrada'
+      }, { status: 404 });
+    }
+    
+    const fabricanteVeiculo = conversa?.MarcaVeiculo || 'Veículo';
+    const modeloVeiculo = conversa?.ModeloVeiculo || '';
+    
+    console.log(`✅ Veículo encontrado: ${fabricanteVeiculo} ${modeloVeiculo}`);
     
     // Formatar lista de peças
     const listaPecas = pecas.map((p, i) => 
@@ -552,10 +578,21 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
     });
 
   } catch (error: any) {
-    console.error('❌ Erro ao gerar cotação:', error);
+    console.error('❌ ERRO CRÍTICO ao gerar cotação:');
+    console.error('   Tipo:', error.constructor.name);
+    console.error('   Mensagem:', error.message);
+    console.error('   Code:', error.code);
+    console.error('   Stack:', error.stack);
+    
+    if (error.originalError) {
+      console.error('   Erro Original:', error.originalError);
+    }
+    
     return NextResponse.json({
       success: false,
-      error: error.message
+      error: error.message,
+      errorType: error.constructor.name,
+      errorCode: error.code
     }, { status: 500 });
   }
 }
