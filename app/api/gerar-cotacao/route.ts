@@ -242,6 +242,8 @@ async function salvarCotacao(
   pool: sql.ConnectionPool
 ): Promise<void> {
   try {
+    console.log(`\n  🔍 Tentando salvar cotação: ${cotacao.nomePeca} (${cotacao.tipoCotacao})`);
+    
     // Encontrar peça correspondente
     const peca = pecas.find(p => 
       p.NomePeca.toLowerCase().includes(cotacao.nomePeca.toLowerCase()) ||
@@ -249,18 +251,29 @@ async function salvarCotacao(
     );
 
     if (!peca) {
-      console.warn(`⚠️  Peça não encontrada para cotação: ${cotacao.nomePeca}`);
+      console.warn(`  ⚠️  Peça não encontrada para cotação: ${cotacao.nomePeca}`);
+      console.warn(`  📋 Peças disponíveis: ${pecas.map(p => p.NomePeca).join(', ')}`);
       return;
     }
+
+    console.log(`  ✓ Peça encontrada: ${peca.NomePeca} (ID: ${peca.Id})`);
 
     // Validar tipo de cotação
     if (!cotacao.tipoCotacao || !['E-Commerce', 'Loja Física'].includes(cotacao.tipoCotacao)) {
-      console.warn(`⚠️  Tipo de cotação inválido: ${cotacao.tipoCotacao}`);
+      console.warn(`  ⚠️  Tipo de cotação inválido: ${cotacao.tipoCotacao}`);
       return;
     }
 
+    console.log(`  📝 Dados da cotação:`);
+    console.log(`     - ConversaId: ${conversaId}`);
+    console.log(`     - PecaId: ${peca.Id}`);
+    console.log(`     - Tipo: ${cotacao.tipoCotacao}`);
+    console.log(`     - Preço: ${cotacao.preco || `${cotacao.precoMinimo} - ${cotacao.precoMaximo}`}`);
+    console.log(`     - Link: ${cotacao.link ? 'Sim' : 'Não'}`);
+    console.log(`     - Endereço: ${cotacao.endereco ? 'Sim' : 'Não'}`);
+
     // Registrar cotação
-    await pool
+    const result = await pool
       .request()
       .input('ConversaId', conversaId)
       .input('ProblemaId', peca.ProblemaId || null)
@@ -281,9 +294,19 @@ async function salvarCotacao(
       .input('EstadoPeca', cotacao.estadoPeca || null)
       .execute('AIHT_sp_RegistrarCotacao');
 
-    console.log(`  ✅ Cotação salva: ${cotacao.nomePeca} (${cotacao.tipoCotacao})`);
-  } catch (error) {
-    console.error(`  ❌ Erro ao salvar cotação ${cotacao.nomePeca}:`, error);
+    if (result.recordset && result.recordset.length > 0) {
+      const cotacaoSalva = result.recordset[0];
+      console.log(`  ✅ Cotação salva com sucesso! ID: ${cotacaoSalva.Id}`);
+    } else {
+      console.warn(`  ⚠️  Stored procedure executada mas sem retorno`);
+    }
+  } catch (error: any) {
+    console.error(`  ❌ Erro ao salvar cotação ${cotacao.nomePeca}:`);
+    console.error(`     Mensagem: ${error.message}`);
+    console.error(`     Stack: ${error.stack}`);
+    if (error.originalError) {
+      console.error(`     Erro SQL: ${error.originalError.message}`);
+    }
   }
 }
 
