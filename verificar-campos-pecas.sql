@@ -1,0 +1,26 @@
+-- Verificar campos das peças
+USE AI_Builder_Hackthon;
+GO
+
+PRINT 'VERIFICANDO CAMPOS DAS PEÇAS DA CONVERSA 48:';
+PRINT '';
+
+-- Ver estrutura da tabela
+PRINT '1. ESTRUTURA DA TABELA AIHT_PecasIdentificadas:';
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'AIHT_PecasIdentificadas'
+ORDER BY ORDINAL_POSITION;
+
+PRINT '';
+PRINT '2. DADOS DAS PEÇAS DA CONVERSA 48:';
+SELECT * FROM AIHT_PecasIdentificadas WHERE ConversaId = 48;
+
+PRINT '';
+PRINT '3. DADOS DA CONVERSA 48:';
+SELECT * FROM AIHT_Conversas WHERE Id = 48;
+
+GO

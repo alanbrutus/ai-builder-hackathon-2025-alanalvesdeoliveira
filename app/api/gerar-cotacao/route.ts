@@ -468,9 +468,17 @@ export async function POST(request: Request) {
 Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço, preço estimado e condições de pagamento.`;
     }
 
-    // 4. Substituir variáveis no prompt
-    const fabricanteVeiculo = pecas[0]?.MarcaVeiculo || 'Veículo';
-    const modeloVeiculo = pecas[0]?.ModeloVeiculo || '';
+    // 4. Buscar informações do veículo da conversa
+    const conversaResult = await pool
+      .request()
+      .input('ConversaId', conversaId)
+      .query('SELECT VeiculoMarca, VeiculoModelo FROM AIHT_Conversas WHERE Id = @ConversaId');
+    
+    const conversa = conversaResult.recordset[0];
+    const fabricanteVeiculo = conversa?.VeiculoMarca || 'Veículo';
+    const modeloVeiculo = conversa?.VeiculoModelo || '';
+    
+    console.log(`🚗 Veículo: ${fabricanteVeiculo} ${modeloVeiculo}`);
     
     // Formatar lista de peças
     const listaPecas = pecas.map((p, i) => 
@@ -483,7 +491,10 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
       .replace(/\{\{modelo_veiculo\}\}/g, modeloVeiculo)
       .replace(/\{\{lista_pecas\}\}/g, listaPecas);
 
-    console.log('📝 Prompt montado com variáveis substituídas');
+    console.log('📝 Prompt montado com variáveis substituídas:');
+    console.log(`   Fabricante: ${fabricanteVeiculo}`);
+    console.log(`   Modelo: ${modeloVeiculo}`);
+    console.log(`   Peças: ${pecas.length}`);
 
     // 4. Enviar para Gemini
     console.log('🤖 Enviando para Gemini...');
@@ -505,7 +516,7 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
     await pool
       .request()
       .input('ConversaId', conversaId)
-      .input('TipoChamada', 'cotacao')
+      .input('TipoChamada', 'gerar-cotacao')
       .input('MensagemCliente', mensagemCliente || 'Mensagem não informada')
       .input('PromptEnviado', promptCotacao || 'Prompt não disponível')
       .input('RespostaRecebida', resultadoIA.response || '')
