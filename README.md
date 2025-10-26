@@ -55,12 +55,16 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 #### **💰 Sistema de Cotação Inteligente**
 - ✅ **Detecção por Palavras-Chave** - 62+ palavras e expressões cadastradas
 - ✅ **Geração Automática** - IA cria cotação com preços e links
+- ✅ **Gravação no Banco de Dados** - Todas as cotações são persistidas
+- ✅ **Suporte E-Commerce e Loja Física** - Dois tipos de cotação
 - ✅ **Interface Compacta** - Visualização otimizada sem scroll
 - ✅ **Cards Responsivos** - Grid adaptativo (1/2/3 colunas)
 - ✅ **Preços Estimados** - Faixa de valores por categoria de peça
 - ✅ **Links de E-commerce** - Mercado Livre, OLX e Google
 - ✅ **Página Dedicada** - `/cotacao/[id]` para visualização completa
 - ✅ **Exportação** - Imprimir ou copiar lista de peças
+- ✅ **Histórico de Cotações** - Consulta de cotações anteriores
+- ✅ **Resumo Estatístico** - Análise de preços e comparações
 
 #### **📊 Banco de Dados**
 - ✅ **15 Grupos Empresariais** - Stellantis, GM, Ford, etc
@@ -72,6 +76,7 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ **Catálogo de Peças** - Peças identificadas por conversa
 - ✅ **Palavras-Chave de Cotação** - 62+ termos para detecção automática
 - ✅ **Log de Chamadas IA** - Auditoria completa de todas as interações
+- ✅ **Sistema de Cotações** - Gravação persistente de cotações (e-commerce e lojas físicas)
 
 #### **🔧 APIs Implementadas**
 - ✅ `GET /api/grupos` - Lista grupos empresariais
@@ -84,6 +89,10 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ `POST /api/gerar-cotacao` - Gera cotação automática com IA
 - ✅ `GET /api/pecas-cotacao/[conversaId]` - Lista peças para cotação
 - ✅ `GET /api/resumo-cotacao/[conversaId]` - Resumo completo da conversa
+- ✅ `POST /api/salvar-cotacao` - Salva cotações no banco de dados
+- ✅ `GET /api/cotacoes/[conversaId]` - Lista cotações de uma conversa
+- ✅ `GET /api/cotacoes/peca/[pecaId]` - Lista cotações de uma peça
+- ✅ `GET /api/cotacoes/resumo/[conversaId]` - Resumo estatístico de cotações
 - ✅ `GET /api/test-env` - Testa variáveis de ambiente
 
 #### **🗄️ Stored Procedures**
@@ -103,6 +112,11 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ `AIHT_sp_RegistrarChamadaIA` - Registra log de chamada à IA
 - ✅ `AIHT_sp_ConsultarLogsIA` - Consulta logs de IA
 - ✅ `AIHT_sp_VerDetalhesLogIA` - Detalhes completos de um log
+- ✅ `AIHT_sp_RegistrarCotacao` - Registra cotação de peça
+- ✅ `AIHT_sp_ListarCotacoesConversa` - Lista cotações de uma conversa
+- ✅ `AIHT_sp_ListarCotacoesPeca` - Lista cotações de uma peça
+- ✅ `AIHT_sp_ResumoCotacoes` - Resumo estatístico de cotações
+- ✅ `AIHT_sp_DeletarCotacao` - Remove cotação (soft delete)
 
 #### **📋 Estrutura de Tabelas**
 - ✅ `AIHT_GruposEmpresariais` - Grupos automotivos
@@ -114,6 +128,7 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ `AIHT_PecasIdentificadas` - Peças necessárias
 - ✅ `AIHT_PalavrasCotacao` - Palavras-chave para detecção de cotação
 - ✅ `AIHT_LogChamadasIA` - Auditoria de chamadas à IA
+- ✅ `AIHT_CotacoesPecas` - Cotações de peças (e-commerce e lojas físicas)
 
 #### **🎨 Componentes React**
 - ✅ `CotacaoCard.tsx` - Card individual de peça (compacto)
@@ -399,6 +414,10 @@ O **Sistema de Cotação Inteligente** é uma das funcionalidades mais inovadora
 - ✅ **Preços Estimados** - Faixa de valores por categoria
 - ✅ **Links Diretos** - Acesso rápido a e-commerces
 - ✅ **Exportação** - Imprimir ou copiar lista
+- ✅ **Gravação Persistente** - Todas as cotações salvas no banco de dados
+- ✅ **Histórico Completo** - Consulta de cotações anteriores
+- ✅ **Análise de Preços** - Comparação entre e-commerce e lojas físicas
+- ✅ **Resumo Estatístico** - Menor, maior e preço médio por peça
 
 ### **Exemplo de Uso:**
 ```
@@ -412,6 +431,65 @@ IA: [Gera cotação automática com preços e links]
 ### **Acesso Direto:**
 - Chat: `http://localhost:3000/chat`
 - Cotação: `http://localhost:3000/cotacao/[id]`
+
+## 💾 Sistema de Gravação de Cotações
+
+### **Visão Geral**
+Sistema completo de persistência de cotações no banco de dados, permitindo histórico, análise e comparação de preços.
+
+### **Estrutura de Dados**
+
+#### Tabela: `AIHT_CotacoesPecas`
+Armazena todas as cotações com relacionamento para `AIHT_PecasIdentificadas`:
+
+**Tipos de Cotação:**
+- **E-Commerce**: Link, preço, condições de pagamento
+- **Loja Física**: Endereço, nome da loja, telefone, preço
+
+**Informações Armazenadas:**
+- Preço único ou faixa de preços (mínimo/máximo)
+- Condições de pagamento
+- Disponibilidade e prazo de entrega
+- Estado da peça (Nova/Usada/Recondicionada)
+- Observações gerais
+
+### **APIs de Cotações**
+
+```typescript
+// Salvar múltiplas cotações
+POST /api/salvar-cotacao
+Body: { cotacoes: [...] }
+
+// Listar cotações de uma conversa
+GET /api/cotacoes/[conversaId]
+
+// Listar cotações de uma peça específica
+GET /api/cotacoes/peca/[pecaId]
+
+// Obter resumo estatístico
+GET /api/cotacoes/resumo/[conversaId]
+```
+
+### **Stored Procedures**
+- `AIHT_sp_RegistrarCotacao` - Registra nova cotação
+- `AIHT_sp_ListarCotacoesConversa` - Lista por conversa
+- `AIHT_sp_ListarCotacoesPeca` - Lista por peça (ordenado por preço)
+- `AIHT_sp_ResumoCotacoes` - Resumo estatístico completo
+- `AIHT_sp_DeletarCotacao` - Remove cotação (soft delete)
+
+### **Benefícios**
+- ✅ **Histórico Completo** - Todas as cotações registradas permanentemente
+- ✅ **Rastreabilidade** - Vinculação com conversa, problema e peça
+- ✅ **Análise de Preços** - Comparação entre e-commerce e lojas físicas
+- ✅ **Relatórios** - Estatísticas de preços (mínimo, máximo, médio)
+- ✅ **Soft Delete** - Dados nunca são deletados fisicamente
+- ✅ **Performance** - Índices otimizados para consultas rápidas
+
+### **Documentação Completa**
+Para detalhes técnicos e exemplos de integração, consulte:
+- `SISTEMA_COTACOES_BD.md` - Documentação técnica completa
+- `EXEMPLO_USO_COTACOES.md` - Exemplos práticos TypeScript/React
+- `IMPLEMENTACAO_COTACOES_COMPLETA.md` - Resumo da implementação
 
 ## 📝 Licença
 
