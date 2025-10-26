@@ -411,6 +411,11 @@ export async function POST(request: Request) {
     const pool = await getConnection();
 
     // 1. Verificar se a mensagem tem intenção de cotação
+    console.log('🔍 Verificando intenção de cotação...');
+    console.log('   Mensagem recebida:', `"${mensagemCliente}"`);
+    console.log('   Tamanho da mensagem:', mensagemCliente?.length || 0);
+    console.log('   Mensagem (bytes):', Buffer.from(mensagemCliente || '').toString('hex'));
+    
     const intencaoResult = await pool
       .request()
       .input('Mensagem', mensagemCliente)
@@ -419,9 +424,10 @@ export async function POST(request: Request) {
     const intencaoCotacao = intencaoResult.recordset[0]?.IntencaoCotacao;
     const palavrasEncontradas = intencaoResult.recordset[0]?.PalavrasEncontradas;
 
-    console.log('🔍 Verificando intenção de cotação...');
-    console.log('   Intenção detectada:', intencaoCotacao ? 'SIM' : 'NÃO');
-    console.log('   Palavras encontradas:', palavrasEncontradas || 'nenhuma');
+    console.log('   Resultado da SP:');
+    console.log('   - IntencaoCotacao:', intencaoCotacao);
+    console.log('   - PalavrasEncontradas:', palavrasEncontradas || 'nenhuma');
+    console.log('   Intenção detectada:', intencaoCotacao ? '✅ SIM' : '❌ NÃO');
 
     if (!intencaoCotacao) {
       return NextResponse.json({
