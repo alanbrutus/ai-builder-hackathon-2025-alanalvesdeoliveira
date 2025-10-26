@@ -235,6 +235,28 @@ export default function ChatPage() {
             console.error('❌ Resposta vazia da API');
             addAssistant("Desculpe, recebi uma resposta vazia. Tente novamente.");
           }
+
+          // GERAR COTAÇÃO AUTOMATICAMENTE APÓS IDENTIFICAÇÃO
+          console.log('💰 Gerando cotação automaticamente...');
+          
+          const cotacaoResponse = await fetch('/api/gerar-cotacao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversaId: conversaId,
+              mensagemCliente: 'cotação automática'
+            })
+          });
+          
+          const cotacaoData = await cotacaoResponse.json();
+          
+          if (cotacaoData.success && cotacaoData.cotacao) {
+            console.log('✅ Cotação gerada automaticamente!');
+            addAssistant(cotacaoData.cotacao);
+          } else if (cotacaoData.mensagem) {
+            console.log('ℹ️ Mensagem da cotação:', cotacaoData.mensagem);
+            addAssistant(cotacaoData.mensagem);
+          }
         } else {
           console.error('❌ Erro na API:', identificacaoData.error);
           const mensagemErro = identificacaoData.error || "Erro desconhecido";

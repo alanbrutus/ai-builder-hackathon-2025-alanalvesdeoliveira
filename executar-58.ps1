@@ -1,0 +1,1 @@
+sqlcmd -S "localhost\ALYASQLEXPRESS" -d "AI_Builder_Hackthon" -U "AI_Hackthon" -P "41@H4ckth0n" -i "SQL\58_debug_conversa_54.sql"
