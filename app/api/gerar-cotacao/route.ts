@@ -15,11 +15,17 @@ async function parsearESalvarCotacoes(
   let totalSalvas = 0;
 
   try {
+    console.log('🔍 Iniciando parser de cotações...');
+    console.log(`   Total de peças identificadas: ${pecas.length}`);
+    
     // Parsear resposta da IA para extrair cotações
     const linhas = respostaIA.split('\n');
     let cotacaoAtual: any = {};
     let dentroDeSecaoPeca = false;
     let nomePecaAtual = '';
+    let cotacoesEncontradas = 0;
+
+    console.log(`   Total de linhas na resposta: ${linhas.length}`);
 
     for (let i = 0; i < linhas.length; i++) {
       const linha = linhas[i].trim();
@@ -27,7 +33,8 @@ async function parsearESalvarCotacoes(
       // Detectar início de seção de peça (ex: "### 1. Bieleta da Barra Estabilizadora")
       if (linha.match(/^###\s+\d+\.\s+(.+)/)) {
         // Salvar cotação anterior se existir
-        if (cotacaoAtual.nomePeca) {
+        if (cotacaoAtual.nomePeca && cotacaoAtual.tipoCotacao) {
+          console.log(`   📦 Salvando cotação: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
           totalSalvas++;
         }
@@ -36,51 +43,90 @@ async function parsearESalvarCotacoes(
         nomePecaAtual = match ? match[1].trim() : '';
         dentroDeSecaoPeca = true;
         cotacaoAtual = { nomePeca: nomePecaAtual };
+        cotacoesEncontradas++;
+        console.log(`   🔧 Nova peça detectada: ${nomePecaAtual}`);
         continue;
       }
 
       if (!dentroDeSecaoPeca) continue;
 
       // Detectar tipo de cotação (suporta múltiplos formatos)
-      const isEcommerce = linha.includes('e-Commerce') || 
+      // Formato 1: "?? **Tipo:** e-Commerce"
+      // Formato 2: "**🛒 Opções e-Commerce:**"
+      // Formato 3: "**Tipo:** e-Commerce"
+      const isEcommerce = linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
+                          linha.match(/\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
+                          linha.includes('e-Commerce') || 
                           linha.includes('e-commerce') ||
-                          linha.includes('E-Commerce') ||
-                          linha.match(/\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i);
+                          linha.includes('E-Commerce');
       
-      const isLojaFisica = linha.includes('Loja Física') || 
+      const isLojaFisica = linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
+                           linha.match(/\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
+                           linha.includes('Loja Física') || 
                            linha.includes('loja física') ||
-                           linha.includes('Loja Fisica') ||
-                           linha.match(/\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i);
+                           linha.includes('Loja Fisica');
 
       if (isEcommerce) {
         if (cotacaoAtual.tipoCotacao) {
+          console.log(`   💾 Salvando cotação anterior antes de nova: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
           totalSalvas++;
         }
         cotacaoAtual = { nomePeca: nomePecaAtual, tipoCotacao: 'E-Commerce' };
+        console.log(`   🛒 Tipo detectado: E-Commerce para ${nomePecaAtual}`);
       } else if (isLojaFisica) {
         if (cotacaoAtual.tipoCotacao) {
+          console.log(`   💾 Salvando cotação anterior antes de nova: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
           totalSalvas++;
         }
         cotacaoAtual = { nomePeca: nomePecaAtual, tipoCotacao: 'Loja Física' };
+        console.log(`   🏪 Tipo detectado: Loja Física para ${nomePecaAtual}`);
       }
 
-      // Extrair link (e-commerce)
-      if (linha.includes('http://') || linha.includes('https://')) {
+      // Extrair link (e-commerce) - formato: "?? **Link/Endereço:** [URL]"
+      if (linha.match(/\?\?\s*\*\*\s*Link\/Endereço:\s*\*\*/i) || linha.match(/Link\/Endereço:/i)) {
+        const linkMatch = linha.match(/(https?:\/\/[^\s\)]+)/);
+        if (linkMatch && !cotacaoAtual.link) {
+          cotacaoAtual.link = linkMatch[1];
+          console.log(`   🔗 Link extraído: ${linkMatch[1].substring(0, 50)}...`);
+        }
+      } else if (linha.includes('http://') || linha.includes('https://')) {
         const linkMatch = linha.match(/(https?:\/\/[^\s\)]+)/);
         if (linkMatch && !cotacaoAtual.link) {
           cotacaoAtual.link = linkMatch[1];
         }
       }
 
-      // Extrair endereço (loja física)
-      if (linha.includes('Endereço:') || linha.match(/[A-Z][a-z]+\s+[A-Z][a-z]+.*\d+.*-.*,/)) {
+      // Extrair endereço (loja física) - formato: "?? **Link/Endereço:** [Endereço]"
+      if (linha.match(/\?\?\s*\*\*\s*Link\/Endereço:\s*\*\*/i) && cotacaoAtual.tipoCotacao === 'Loja Física') {
+        const enderecoMatch = linha.match(/Link\/Endereço:\s*\*\*\s*(.+)/i);
+        if (enderecoMatch && !cotacaoAtual.endereco) {
+          cotacaoAtual.endereco = enderecoMatch[1].replace(/\*/g, '').trim();
+          console.log(`   📍 Endereço extraído: ${cotacaoAtual.endereco.substring(0, 50)}...`);
+        }
+      } else if (linha.includes('Endereço:') || linha.match(/[A-Z][a-z]+\s+[A-Z][a-z]+.*\d+.*-.*,/)) {
         const enderecoMatch = linha.match(/:\s*(.+)/);
         if (enderecoMatch) {
           cotacaoAtual.endereco = enderecoMatch[1].trim();
         } else if (!cotacaoAtual.endereco && linha.match(/[A-Z][a-z]+.*\d+/)) {
           cotacaoAtual.endereco = linha.replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
+        }
+      }
+
+      // Extrair nome da peça - formato: "?? **Nome da Peça:** [Nome]"
+      if (linha.match(/\?\?\s*\*\*\s*Nome da Peça:\s*\*\*/i)) {
+        const nomeMatch = linha.match(/Nome da Peça:\s*\*\*\s*(.+)/i);
+        if (nomeMatch && !cotacaoAtual.nomePecaCompleto) {
+          cotacaoAtual.nomePecaCompleto = nomeMatch[1].replace(/\*/g, '').trim();
+        }
+      }
+
+      // Extrair código - formato: "?? **Código:** [Código]"
+      if (linha.match(/\?\?\s*\*\*\s*Código:\s*\*\*/i)) {
+        const codigoMatch = linha.match(/Código:\s*\*\*\s*(.+)/i);
+        if (codigoMatch && !cotacaoAtual.codigo) {
+          cotacaoAtual.codigo = codigoMatch[1].replace(/\*/g, '').trim();
         }
       }
 
@@ -93,7 +139,8 @@ async function parsearESalvarCotacoes(
       }
 
       // Extrair preço (suporta múltiplos formatos)
-      if (linha.includes('R$') || linha.includes('Preço:') || linha.match(/💰|💵/)) {
+      // Formato: "?? **Preço:** R$ 150,00 - R$ 200,00"
+      if (linha.match(/\?\?\s*\*\*\s*Preço:/i) || linha.includes('R$') || linha.includes('Preço:') || linha.match(/💰|💵/)) {
         // Faixa de preço: R$ 150,00 - R$ 200,00 ou R$ 150 - R$ 200
         const faixaMatch = linha.match(/R\$\s*([\d.,]+)\s*-\s*R\$\s*([\d.,]+)/);
         if (faixaMatch && !cotacaoAtual.precoMinimo) {
@@ -101,21 +148,46 @@ async function parsearESalvarCotacoes(
           const max = faixaMatch[2].replace(/\./g, '').replace(',', '.');
           cotacaoAtual.precoMinimo = parseFloat(min);
           cotacaoAtual.precoMaximo = parseFloat(max);
+          console.log(`   💰 Preço extraído: R$ ${cotacaoAtual.precoMinimo} - R$ ${cotacaoAtual.precoMaximo}`);
         } else {
           // Preço único: R$ 189,90
           const unicoMatch = linha.match(/R\$\s*([\d.,]+)(?!\s*-)/);
           if (unicoMatch && !cotacaoAtual.preco && !cotacaoAtual.precoMinimo) {
             const preco = unicoMatch[1].replace(/\./g, '').replace(',', '.');
             cotacaoAtual.preco = parseFloat(preco);
+            console.log(`   💰 Preço extraído: R$ ${cotacaoAtual.preco}`);
           }
         }
       }
 
       // Extrair condições de pagamento (múltiplos formatos)
-      if (linha.match(/Condições de Pagamento:|Pagamento:|💳/i)) {
+      // Formato: "?? **Condições de Pagamento:** [texto]"
+      if (linha.match(/\?\?\s*\*\*\s*Condições de Pagamento:/i) || linha.match(/Condições de Pagamento:|Pagamento:|💳/i)) {
         const pagamentoMatch = linha.match(/(?:Condições de )?Pagamento:\s*\*?\*?\s*(.+)/i);
         if (pagamentoMatch && !cotacaoAtual.condicoesPagamento) {
           cotacaoAtual.condicoesPagamento = pagamentoMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
+        }
+      }
+
+      // Extrair observações (múltiplos formatos)
+      // Formato: "? **Observações:** [texto]"
+      if (linha.match(/\?\s*\*\*\s*Observações:/i) || linha.match(/^\s*\*\s+\*\*Observações/i) || linha.match(/^📝\s*\*\*Observações/i)) {
+        const obsMatch = linha.match(/Observações:\s*\*?\*?\s*(.+)/i);
+        if (obsMatch && !cotacaoAtual.observacoes) {
+          cotacaoAtual.observacoes = obsMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
+        } else {
+          // Marcar que entramos na seção de observações
+          cotacaoAtual.dentroObservacoes = true;
+        }
+      } else if (cotacaoAtual.dentroObservacoes && linha.match(/^\s*\*/)) {
+        // Capturar linhas de observação
+        const obsTexto = linha.replace(/^\s*\*\s*\*?\*?/, '').replace(/\*\*/g, '').trim();
+        if (obsTexto && obsTexto.length > 5) {
+          if (!cotacaoAtual.observacoes) {
+            cotacaoAtual.observacoes = obsTexto;
+          } else {
+            cotacaoAtual.observacoes += '; ' + obsTexto;
+          }
         }
       }
 
@@ -134,28 +206,23 @@ async function parsearESalvarCotacoes(
           cotacaoAtual.prazoEntrega = prazoMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').trim();
         }
       }
-      
-      // Extrair observações gerais (seção de observações)
-      if (linha.match(/^\s*\*\s+\*\*Observações/i) || linha.match(/^📝\s*\*\*Observações/i)) {
-        // Marcar que entramos na seção de observações
-        cotacaoAtual.dentroObservacoes = true;
-      } else if (cotacaoAtual.dentroObservacoes && linha.match(/^\s*\*/)) {
-        // Capturar linhas de observação
-        const obsTexto = linha.replace(/^\s*\*\s*\*?\*?/, '').replace(/\*\*/g, '').trim();
-        if (obsTexto && obsTexto.length > 5) {
-          if (!cotacaoAtual.observacoes) {
-            cotacaoAtual.observacoes = obsTexto;
-          } else {
-            cotacaoAtual.observacoes += '; ' + obsTexto;
-          }
-        }
-      }
     }
 
     // Salvar última cotação
     if (cotacaoAtual.nomePeca && cotacaoAtual.tipoCotacao) {
+      console.log(`   📦 Salvando última cotação: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
       await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
       totalSalvas++;
+    }
+
+    console.log(`\n📊 Resumo do Parser:`);
+    console.log(`   Peças detectadas na resposta: ${cotacoesEncontradas}`);
+    console.log(`   Cotações salvas no banco: ${totalSalvas}`);
+    
+    if (totalSalvas === 0 && cotacoesEncontradas > 0) {
+      console.warn(`⚠️  ATENÇÃO: Peças foram detectadas mas nenhuma cotação foi salva!`);
+      console.warn(`   Possível causa: Tipo de cotação não foi detectado corretamente`);
+      console.warn(`   Verifique o formato da resposta da IA`);
     }
 
   } catch (error) {
