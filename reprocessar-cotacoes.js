@@ -335,16 +335,23 @@ async function salvarCotacao(cotacao, pecas, conversaId, pool) {
 
   await pool.request()
     .input('ConversaId', conversaId)
+    .input('ProblemaId', pecaEncontrada?.ProblemaId || null)
     .input('PecaIdentificadaId', pecaId)
     .input('NomePeca', cotacao.nomePeca)
     .input('TipoCotacao', cotacao.tipoCotacao)
-    .input('Link', cotacao.link || cotacao.endereco || null)
+    .input('Link', cotacao.link || null)
+    .input('Endereco', cotacao.endereco || null)
+    .input('NomeLoja', cotacao.nomeLoja || null)
+    .input('Telefone', cotacao.telefone || null)
     .input('Preco', cotacao.preco || null)
     .input('PrecoMinimo', cotacao.precoMinimo || null)
     .input('PrecoMaximo', cotacao.precoMaximo || null)
     .input('CondicoesPagamento', cotacao.condicoesPagamento || null)
     .input('Observacoes', cotacao.observacoes || null)
-    .execute('AIHT_sp_SalvarCotacao');
+    .input('Disponibilidade', cotacao.disponibilidade || null)
+    .input('PrazoEntrega', cotacao.prazoEntrega || null)
+    .input('EstadoPeca', cotacao.estadoPeca || null)
+    .execute('AIHT_sp_RegistrarCotacao');
 }
 
 // Executar
