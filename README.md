@@ -29,8 +29,11 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 3. **Análise por IA** - Google Gemini Pro analisa o problema e identifica causas
 4. **Diagnóstico Técnico** - IA fornece explicação detalhada do problema
 5. **Identificação de Peças** - Sistema identifica automaticamente as peças necessárias
-6. **Registro no Banco** - Problemas e peças são salvos para consulta futura
-7. **Recomendações** - IA sugere próximos passos e cuidados
+6. **Detecção de Cotação** - Sistema detecta automaticamente quando cliente quer cotação
+7. **Geração de Cotação** - IA gera cotação com preços estimados e links de compra
+8. **Visualização Compacta** - Interface otimizada mostra até 12 peças sem scroll
+9. **Registro no Banco** - Problemas e peças são salvos para consulta futura
+10. **Recomendações** - IA sugere próximos passos e cuidados
 
 ### 🌟 Funcionalidades Implementadas
 
@@ -47,6 +50,17 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ **Histórico de Mensagens** - Todas as interações salvas
 - ✅ **Feedback Visual** - Loading states e indicadores
 - ✅ **Scroll Automático** - Acompanha novas mensagens
+- ✅ **Detecção Automática de Cotação** - Identifica quando cliente quer preços
+
+#### **💰 Sistema de Cotação Inteligente**
+- ✅ **Detecção por Palavras-Chave** - 62+ palavras e expressões cadastradas
+- ✅ **Geração Automática** - IA cria cotação com preços e links
+- ✅ **Interface Compacta** - Visualização otimizada sem scroll
+- ✅ **Cards Responsivos** - Grid adaptativo (1/2/3 colunas)
+- ✅ **Preços Estimados** - Faixa de valores por categoria de peça
+- ✅ **Links de E-commerce** - Mercado Livre, OLX e Google
+- ✅ **Página Dedicada** - `/cotacao/[id]` para visualização completa
+- ✅ **Exportação** - Imprimir ou copiar lista de peças
 
 #### **📊 Banco de Dados**
 - ✅ **15 Grupos Empresariais** - Stellantis, GM, Ford, etc
@@ -56,6 +70,7 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ **Rastreamento de Conversas** - Histórico completo
 - ✅ **Identificação de Problemas** - Registro de diagnósticos
 - ✅ **Catálogo de Peças** - Peças identificadas por conversa
+- ✅ **Palavras-Chave de Cotação** - 62+ termos para detecção automática
 - ✅ **Log de Chamadas IA** - Auditoria completa de todas as interações
 
 #### **🔧 APIs Implementadas**
@@ -66,6 +81,9 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ `POST /api/conversas` - Cria nova conversa
 - ✅ `POST /api/identificar-pecas` - Identifica problemas e peças via IA
 - ✅ `POST /api/chat` - Envia mensagem para IA
+- ✅ `POST /api/gerar-cotacao` - Gera cotação automática com IA
+- ✅ `GET /api/pecas-cotacao/[conversaId]` - Lista peças para cotação
+- ✅ `GET /api/resumo-cotacao/[conversaId]` - Resumo completo da conversa
 - ✅ `GET /api/test-env` - Testa variáveis de ambiente
 
 #### **🗄️ Stored Procedures**
@@ -78,6 +96,10 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ `AIHT_sp_RegistrarProblema` - Registra problema identificado
 - ✅ `AIHT_sp_RegistrarPeca` - Registra peça identificada
 - ✅ `AIHT_sp_ListarPecasConversa` - Lista peças de uma conversa
+- ✅ `AIHT_sp_VerificarIntencaoCotacao` - Detecta intenção de cotação
+- ✅ `AIHT_sp_ListarPecasParaCotacao` - Lista peças com dados completos
+- ✅ `AIHT_sp_ResumoCotacao` - Resumo completo para cotação
+- ✅ `AIHT_sp_ListarPalavrasCotacao` - Lista palavras-chave cadastradas
 - ✅ `AIHT_sp_RegistrarChamadaIA` - Registra log de chamada à IA
 - ✅ `AIHT_sp_ConsultarLogsIA` - Consulta logs de IA
 - ✅ `AIHT_sp_VerDetalhesLogIA` - Detalhes completos de um log
@@ -90,7 +112,13 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - ✅ `AIHT_Conversas` - Histórico de conversas
 - ✅ `AIHT_ProblemasIdentificados` - Problemas diagnosticados
 - ✅ `AIHT_PecasIdentificadas` - Peças necessárias
+- ✅ `AIHT_PalavrasCotacao` - Palavras-chave para detecção de cotação
 - ✅ `AIHT_LogChamadasIA` - Auditoria de chamadas à IA
+
+#### **🎨 Componentes React**
+- ✅ `CotacaoCard.tsx` - Card individual de peça (compacto)
+- ✅ `CotacaoList.tsx` - Lista de peças com grid responsivo
+- ✅ `/cotacao/[conversaId]/page.tsx` - Página dedicada de cotação
 
 #### **🔍 Sistema de Debug**
 - ✅ **Logs Completos** - Todas as chamadas à IA registradas
@@ -107,12 +135,20 @@ Criar uma aplicação web inovadora que utiliza **Chat com IA** para revoluciona
 - **[TypeScript](https://www.typescriptlang.org/)** - Tipagem estática
 - **[Tailwind CSS](https://tailwindcss.com/)** - Framework CSS utilitário
 - **[React 19](https://react.dev/)** - Biblioteca para interfaces
+- **Componentes Customizados** - CotacaoCard, CotacaoList (otimizados)
 
 ### Backend & IA
 - **[Google Gemini Pro](https://ai.google.dev/)** - Modelo de IA para análise e diagnóstico
 - **[SQL Server Express](https://www.microsoft.com/sql-server)** - Banco de dados relacional
 - **[mssql](https://www.npmjs.com/package/mssql)** - Driver Node.js para SQL Server
 - **Next.js API Routes** - Backend serverless
+- **Stored Procedures** - Lógica de negócio no banco de dados
+
+### Otimizações de UI
+- **Grid Responsivo** - 1/2/3 colunas (mobile/tablet/desktop)
+- **Design Compacto** - Redução de 50% na altura dos cards
+- **Densidade de Informação** - Até 12 peças visíveis sem scroll
+- **Performance** - Componentes otimizados para renderização rápida
 
 ### Configuração do Banco de Dados
 - **Hostname:** `.\ALYASQLEXPRESS`
@@ -201,6 +237,11 @@ O Vibe Coding permite um fluxo de desenvolvimento mais intuitivo e produtivo, on
    - `06_conversas_CORRIGIDO_FINAL.sql` - Cria tabelas de conversas e peças
    - `12_inserir_prompt_CORRETO.sql` - Insere prompt de identificação
    - `13_criar_tabela_log_ia.sql` - Cria tabela de log de IA
+   
+   **Sistema de Cotação:**
+   - `23_tabela_palavras_cotacao.sql` - Cria tabela de palavras-chave
+   - `24_atualizar_sp_verificar_cotacao.sql` - SP de detecção de cotação
+   - `21_sp_cotacao_com_marcas.sql` - SPs de listagem para cotação
    
    **Stored Procedures:**
    - Todas as stored procedures são criadas automaticamente pelos scripts acima
@@ -338,6 +379,39 @@ FROM AIHT_LogChamadasIA;
 - Verifique os logs no console do servidor
 - Consulte a tabela `AIHT_LogChamadasIA` para ver erros
 - Teste a API Key: `http://localhost:3000/api/test-env`
+
+## 💰 Sistema de Cotação - Destaque
+
+O **Sistema de Cotação Inteligente** é uma das funcionalidades mais inovadoras do AutoParts AI:
+
+### **Como Usar:**
+1. Inicie uma conversa e descreva o problema do veículo
+2. A IA identificará automaticamente as peças necessárias
+3. Digite palavras como "quanto custa", "preço", "cotação" ou "quero comprar"
+4. O sistema detecta automaticamente e gera uma cotação completa
+5. Visualize até 12 peças simultaneamente sem scroll
+6. Clique nos botões para buscar em Mercado Livre, OLX ou Google
+
+### **Características:**
+- ✅ **Detecção Automática** - 62+ palavras-chave cadastradas
+- ✅ **Interface Otimizada** - Design compacto (50% menos altura)
+- ✅ **Grid Responsivo** - 1/2/3 colunas conforme dispositivo
+- ✅ **Preços Estimados** - Faixa de valores por categoria
+- ✅ **Links Diretos** - Acesso rápido a e-commerces
+- ✅ **Exportação** - Imprimir ou copiar lista
+
+### **Exemplo de Uso:**
+```
+Você: "Meu freio está fazendo barulho"
+IA: [Identifica: Pastilha de Freio, Disco de Freio]
+
+Você: "Quanto custa essas peças?"
+IA: [Gera cotação automática com preços e links]
+```
+
+### **Acesso Direto:**
+- Chat: `http://localhost:3000/chat`
+- Cotação: `http://localhost:3000/cotacao/[id]`
 
 ## 📝 Licença
 

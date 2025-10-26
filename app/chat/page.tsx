@@ -116,17 +116,21 @@ export default function ChatPage() {
     }
   };
 
+  const generateId = () => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
   const addAssistant = (content: string) => {
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), role: "assistant", content },
+      { id: generateId(), role: "assistant", content },
     ]);
   };
 
   const addUser = (content: string) => {
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), role: "user", content },
+      { id: generateId(), role: "user", content },
     ]);
   };
 
@@ -210,7 +214,10 @@ export default function ChatPage() {
         if (resposta) {
           addAssistant(resposta);
           
-          // Verificar se o cliente quer cotação
+          // APÓS O DIAGNÓSTICO: Verificar se a mensagem do cliente contém palavra de cotação
+          console.log('🔍 Verificando próximo passo após diagnóstico...');
+          console.log('   Mensagem do cliente:', text);
+          
           const cotacaoResponse = await fetch('/api/gerar-cotacao', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -223,12 +230,35 @@ export default function ChatPage() {
           const cotacaoData = await cotacaoResponse.json();
           
           if (cotacaoData.success && cotacaoData.intencaoCotacao) {
+            // CLIENTE SOLICITOU COTAÇÃO
             console.log('💰 Intenção de cotação detectada!');
-            console.log('   Palavras:', cotacaoData.palavrasEncontradas);
+            console.log('   Palavras encontradas:', cotacaoData.palavrasEncontradas);
             
             if (cotacaoData.cotacao) {
-              // Adicionar resposta de cotação
               addAssistant(cotacaoData.cotacao);
+            }
+          } else {
+            // CLIENTE NÃO SOLICITOU COTAÇÃO - Finalizar atendimento
+            console.log('🏁 Sem intenção de cotação. Finalizando atendimento...');
+            
+            const finalizacaoResponse = await fetch('/api/finalizar-atendimento', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversaId: conversaId,
+                mensagemCliente: text,
+                nomeCliente: name,
+                fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
+                modeloVeiculo: modeloSelecionado?.Nome || '',
+                diagnosticoAnterior: resposta
+              })
+            });
+            
+            const finalizacaoData = await finalizacaoResponse.json();
+            
+            if (finalizacaoData.success && finalizacaoData.mensagem) {
+              console.log('✅ Atendimento finalizado');
+              addAssistant(finalizacaoData.mensagem);
             }
           }
         } else {
@@ -249,28 +279,28 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       {/* Sidebar - Formulário */}
-      <div className="w-80 bg-gray-50 border-r border-gray-200 p-6 overflow-y-auto">
-        <div className="mb-6">
+      <div className="w-72 bg-gray-50 border-r border-gray-200 p-3 flex flex-col">
+        <div className="mb-3">
           <Image
             src="/images/AutoPartAI.jpg"
             alt="AutoParts AI"
-            width={240}
-            height={80}
-            className="mb-4 rounded-lg"
+            width={200}
+            height={60}
+            className="mb-2 rounded-lg"
             priority
           />
-          <Link href="/" className="text-blue-600 hover:underline text-sm">
-            ← Voltar ao início
+          <Link href="/" className="text-blue-600 hover:underline text-xs">
+            ← Voltar
           </Link>
         </div>
 
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Dados do Veículo</h2>
+        <h2 className="text-base font-bold text-gray-900 mb-2">Dados do Veículo</h2>
         
-        <div className="space-y-4">
+        <div className="space-y-2 flex-1 overflow-y-auto">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
               Seu Nome *
             </label>
             <input
@@ -278,20 +308,20 @@ export default function ChatPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={chatStarted}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
               placeholder="Digite seu nome"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
               Grupo Empresarial *
             </label>
             <select
               value={grupoId}
               onChange={(e) => setGrupoId(e.target.value)}
               disabled={chatStarted}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Selecione...</option>
               {grupos.map((grupo) => (
@@ -303,14 +333,14 @@ export default function ChatPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
               Fabricante *
             </label>
             <select
               value={fabricanteId}
               onChange={(e) => setFabricanteId(e.target.value)}
               disabled={chatStarted || !grupoId}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Selecione...</option>
               {fabricantes.map((fabricante) => (
@@ -322,14 +352,14 @@ export default function ChatPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
               Modelo *
             </label>
             <select
               value={modeloId}
               onChange={(e) => setModeloId(e.target.value)}
               disabled={chatStarted || !fabricanteId}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Selecione...</option>
               {modelos.map((modelo) => (
@@ -344,16 +374,16 @@ export default function ChatPage() {
             <button
               onClick={handleStartChat}
               disabled={!name || !grupoId || !fabricanteId || !modeloId}
-              className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Iniciar Chat
             </button>
           )}
 
           {chatStarted && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-              <p className="text-sm text-green-800 font-medium">✓ Chat iniciado</p>
-              <p className="text-xs text-green-600 mt-1">
+            <div className="p-2 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-xs text-green-800 font-medium">✓ Chat iniciado</p>
+              <p className="text-xs text-green-600 mt-0.5 truncate">
                 {name} - {modelos.find(m => m.Id === parseInt(modeloId))?.Nome}
               </p>
             </div>
@@ -362,43 +392,43 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
-        <div className="bg-white border-b border-gray-200 p-4 flex items-center gap-4">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="bg-white border-b border-gray-200 p-2 flex items-center gap-2">
           <Image
             src="/images/AutoPartAI.jpg"
             alt="AutoParts AI"
-            width={60}
-            height={60}
+            width={40}
+            height={40}
             className="rounded-lg"
           />
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Chat com IA</h1>
-            <p className="text-sm text-gray-500 mt-1">AutoParts AI - Assistente Virtual</p>
+            <h1 className="text-base font-semibold text-gray-900">Chat com IA</h1>
+            <p className="text-xs text-gray-500">AutoParts AI</p>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-3 bg-gray-50">
           {!chatStarted ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="text-6xl mb-4">🤖</div>
-                <h3 className="text-xl font-medium text-gray-900 mb-2">
-                  Preencha os dados ao lado para iniciar
+                <div className="text-4xl mb-2">🤖</div>
+                <h3 className="text-base font-medium text-gray-900 mb-1">
+                  Preencha os dados ao lado
                 </h3>
-                <p className="text-gray-500">
-                  Informe seu nome e os dados do seu veículo
+                <p className="text-xs text-gray-500">
+                  Informe seu nome e dados do veículo
                 </p>
               </div>
             </div>
           ) : (
-            <div className="max-w-4xl mx-auto space-y-4">
+            <div className="max-w-4xl mx-auto space-y-2">
               {messages.map((m) => (
                 <div key={m.id} className="flex">
                   <div
                     className={
                       m.role === "assistant"
-                        ? "bg-white text-gray-900 border border-gray-200 ml-0 mr-auto rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%] shadow-sm"
-                        : "bg-blue-600 text-white ml-auto mr-0 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%]"
+                        ? "bg-white text-gray-900 border border-gray-200 ml-0 mr-auto rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%] shadow-sm text-sm"
+                        : "bg-blue-600 text-white ml-auto mr-0 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%] text-sm"
                     }
                   >
                     <div className="whitespace-pre-line">{m.content}</div>
@@ -408,11 +438,11 @@ export default function ChatPage() {
               
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-white border border-gray-200 p-3 rounded-lg rounded-tl-sm shadow-sm">
-                    <div className="flex space-x-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                      <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                  <div className="bg-white border border-gray-200 p-2 rounded-lg rounded-tl-sm shadow-sm">
+                    <div className="flex space-x-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }}></div>
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }}></div>
                     </div>
                   </div>
                 </div>
@@ -424,19 +454,19 @@ export default function ChatPage() {
         </div>
 
         {chatStarted && (
-          <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white p-4">
-            <div className="max-w-4xl mx-auto flex items-center gap-2">
+          <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white px-2 py-1.5">
+            <div className="max-w-4xl mx-auto flex items-center gap-1.5">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Digite sua mensagem..."
                 disabled={loading}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                className="flex-1 px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
               />
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 Enviar
               </button>

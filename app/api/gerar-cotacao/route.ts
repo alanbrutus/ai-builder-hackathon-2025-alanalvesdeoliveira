@@ -54,35 +54,41 @@ export async function POST(request: Request) {
 
     console.log(`📦 ${pecas.length} peças encontradas para cotação`);
 
-    // 3. Montar prompt para cotação
-    const promptCotacao = `
-Você é um assistente de vendas especializado em peças automotivas.
+    // 3. Buscar prompt de cotação do banco de dados
+    const promptResult = await pool
+      .request()
+      .input('Contexto', 'cotacao')
+      .execute('AIHT_sp_ObterPromptPorContexto');
 
-O cliente solicitou cotação para as seguintes peças:
+    let promptTemplate = promptResult.recordset[0]?.ConteudoPrompt;
 
-${pecas.map((p, i) => `
-${i + 1}. ${p.NomePeca}
-   - Código: ${p.CodigoPeca || 'Não informado'}
-   - Categoria: ${p.CategoriaPeca || 'Geral'}
-   - Problema: ${p.DescricaoProblema}
-   - Veículo: ${p.MarcaVeiculo || ''} ${p.ModeloVeiculo || ''}
-`).join('\n')}
+    if (!promptTemplate) {
+      console.warn('⚠️  Prompt de cotação não encontrado, usando padrão');
+      promptTemplate = `Preciso que realize um processo de cotação para o {{fabricante_veiculo}} {{modelo_veiculo}} em e-Commerce e lojas presenciais para as peças relacionadas abaixo:
 
-INSTRUÇÕES:
-1. Para cada peça, forneça informações de cotação incluindo:
-   - Faixa de preço estimada (mínimo e máximo)
-   - Links de e-commerce (Mercado Livre, OLX, lojas especializadas)
-   - Sugestão de lojas físicas (redes conhecidas como AutoZone, Nakata, etc.)
-   - Dicas de compra (original vs paralela, garantia, etc.)
+-- Início Peças
+{{lista_pecas}}
+-- Fim Peças
 
-2. Seja específico e útil, fornecendo URLs reais quando possível
+Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço, preço estimado e condições de pagamento.`;
+    }
 
-3. Organize a resposta de forma clara e profissional
+    // 4. Substituir variáveis no prompt
+    const fabricanteVeiculo = pecas[0]?.MarcaVeiculo || 'Veículo';
+    const modeloVeiculo = pecas[0]?.ModeloVeiculo || '';
+    
+    // Formatar lista de peças
+    const listaPecas = pecas.map((p, i) => 
+      `${i + 1}. ${p.NomePeca} - ${p.CodigoPeca || 'Sem código'}`
+    ).join('\n');
 
-4. Ao final, pergunte se o cliente deseja ajuda com a instalação ou tem outras dúvidas
+    // Substituir variáveis
+    const promptCotacao = promptTemplate
+      .replace(/\{\{fabricante_veiculo\}\}/g, fabricanteVeiculo)
+      .replace(/\{\{modelo_veiculo\}\}/g, modeloVeiculo)
+      .replace(/\{\{lista_pecas\}\}/g, listaPecas);
 
-Responda de forma completa e profissional:
-`;
+    console.log('📝 Prompt montado com variáveis substituídas');
 
     // 4. Enviar para Gemini
     console.log('🤖 Enviando para Gemini...');
