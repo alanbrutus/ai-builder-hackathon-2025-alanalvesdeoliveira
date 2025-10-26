@@ -44,6 +44,9 @@ export default function ChatPage() {
   // ID da conversa no banco
   const [conversaId, setConversaId] = useState<number | null>(null);
   
+  // Contador de mensagens do cliente (para controlar fluxo)
+  const [mensagensCliente, setMensagensCliente] = useState(0);
+  
   // Listas para os selects
   const [grupos, setGrupos] = useState<GrupoEmpresarial[]>([]);
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
@@ -184,91 +187,106 @@ export default function ChatPage() {
     setInput("");
     setLoading(true);
 
+    // Incrementar contador de mensagens
+    const numeroMensagem = mensagensCliente + 1;
+    setMensagensCliente(numeroMensagem);
+
     try {
       const grupoSelecionado = grupos.find(g => g.Id === parseInt(grupoId));
       const fabricanteSelecionado = fabricantes.find(f => f.Id === parseInt(fabricanteId));
       const modeloSelecionado = modelos.find(m => m.Id === parseInt(modeloId));
 
-      // Primeiro: Identificar peças na mensagem
-      const identificacaoResponse = await fetch('/api/identificar-pecas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversaId: conversaId,
-          mensagem: text,
-          nomeCliente: name,
-          grupoEmpresarial: grupoSelecionado?.Nome || '',
-          fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
-          modeloVeiculo: modeloSelecionado?.Nome || ''
-        })
-      });
+      console.log(`📨 Mensagem #${numeroMensagem} do cliente`);
+      
+      if (numeroMensagem === 1) {
+        // PRIMEIRA MENSAGEM - Identificar peças
+        console.log('🔍 Primeira mensagem. Identificando peças...');
+        
+        const identificacaoResponse = await fetch('/api/identificar-pecas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversaId: conversaId,
+            mensagem: text,
+            nomeCliente: name,
+            grupoEmpresarial: grupoSelecionado?.Nome || '',
+            fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
+            modeloVeiculo: modeloSelecionado?.Nome || ''
+          })
+        });
 
-      const identificacaoData = await identificacaoResponse.json();
+        const identificacaoData = await identificacaoResponse.json();
+        console.log('📥 Resposta da identificação:', identificacaoData);
 
-      console.log('📥 Resposta da API:', identificacaoData);
-
-      // Usar a resposta completa da IA de identificação
-      if (identificacaoData.success) {
-        // Pode ter respostaCompleta ou mensagem
-        const resposta = identificacaoData.respostaCompleta || identificacaoData.mensagem;
-        if (resposta) {
-          addAssistant(resposta);
+        if (identificacaoData.success) {
+          const resposta = identificacaoData.respostaCompleta || identificacaoData.mensagem;
+          if (resposta) {
+            addAssistant(resposta);
+          } else {
+            console.error('❌ Resposta vazia da API');
+            addAssistant("Desculpe, recebi uma resposta vazia. Tente novamente.");
+          }
+        } else {
+          console.error('❌ Erro na API:', identificacaoData.error);
+          const mensagemErro = identificacaoData.error || "Erro desconhecido";
+          addAssistant(`Desculpe, ocorreu um erro: ${mensagemErro}. Tente novamente.`);
+        }
+      } else {
+        // SEGUNDA MENSAGEM OU MAIS - Verificar se é cotação ou finalização
+        console.log(`🔧 Mensagem #${numeroMensagem}. Verificando se é cotação ou finalização...`);
+        console.log('   Mensagem:', text);
+        
+        const verificacaoResponse = await fetch('/api/gerar-cotacao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversaId: conversaId,
+            mensagemCliente: text
+          })
+        });
+        
+        const verificacaoData = await verificacaoResponse.json();
+        
+        if (verificacaoData.success && verificacaoData.intencaoCotacao) {
+          // CLIENTE SOLICITOU COTAÇÃO
+          console.log('💰 Intenção de cotação detectada!');
+          console.log('   Palavras encontradas:', verificacaoData.palavrasEncontradas);
           
-          // APÓS O DIAGNÓSTICO: Verificar se a mensagem do cliente contém palavra de cotação
-          console.log('🔍 Verificando próximo passo após diagnóstico...');
-          console.log('   Mensagem do cliente:', text);
+          if (verificacaoData.cotacao) {
+            addAssistant(verificacaoData.cotacao);
+          } else if (verificacaoData.mensagem) {
+            addAssistant(verificacaoData.mensagem);
+          }
+        } else {
+          // CLIENTE NÃO SOLICITOU COTAÇÃO - Finalizar
+          console.log('🏁 Sem intenção de cotação. Finalizando atendimento...');
+          console.log('   Dados enviados:', {
+            conversaId,
+            mensagemCliente: text,
+            nomeCliente: name,
+            fabricanteVeiculo: fabricanteSelecionado?.Nome,
+            modeloVeiculo: modeloSelecionado?.Nome
+          });
           
-          const cotacaoResponse = await fetch('/api/gerar-cotacao', {
+          const finalizacaoResponse = await fetch('/api/finalizar-atendimento', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               conversaId: conversaId,
-              mensagemCliente: text
+              mensagemCliente: text,
+              nomeCliente: name,
+              fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
+              modeloVeiculo: modeloSelecionado?.Nome || '',
+              diagnosticoAnterior: ''
             })
           });
           
-          const cotacaoData = await cotacaoResponse.json();
+          const finalizacaoData = await finalizacaoResponse.json();
           
-          if (cotacaoData.success && cotacaoData.intencaoCotacao) {
-            // CLIENTE SOLICITOU COTAÇÃO
-            console.log('💰 Intenção de cotação detectada!');
-            console.log('   Palavras encontradas:', cotacaoData.palavrasEncontradas);
-            
-            if (cotacaoData.cotacao) {
-              addAssistant(cotacaoData.cotacao);
-            }
-          } else {
-            // CLIENTE NÃO SOLICITOU COTAÇÃO - Finalizar atendimento
-            console.log('🏁 Sem intenção de cotação. Finalizando atendimento...');
-            
-            const finalizacaoResponse = await fetch('/api/finalizar-atendimento', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                conversaId: conversaId,
-                mensagemCliente: text,
-                nomeCliente: name,
-                fabricanteVeiculo: fabricanteSelecionado?.Nome || '',
-                modeloVeiculo: modeloSelecionado?.Nome || '',
-                diagnosticoAnterior: resposta
-              })
-            });
-            
-            const finalizacaoData = await finalizacaoResponse.json();
-            
-            if (finalizacaoData.success && finalizacaoData.mensagem) {
-              console.log('✅ Atendimento finalizado');
-              addAssistant(finalizacaoData.mensagem);
-            }
+          if (finalizacaoData.success && finalizacaoData.mensagem) {
+            addAssistant(finalizacaoData.mensagem);
           }
-        } else {
-          console.error('❌ Resposta vazia da API');
-          addAssistant("Desculpe, recebi uma resposta vazia. Tente novamente.");
         }
-      } else {
-        console.error('❌ Erro na API:', identificacaoData.error);
-        const mensagemErro = identificacaoData.error || "Erro desconhecido";
-        addAssistant(`Desculpe, ocorreu um erro: ${mensagemErro}. Tente novamente.`);
       }
     } catch (error) {
       console.error('Erro:', error);

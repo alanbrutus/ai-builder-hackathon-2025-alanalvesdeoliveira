@@ -27,20 +27,29 @@ export async function POST(request: Request) {
       .input('Contexto', 'identificacao_pecas')
       .execute('AIHT_sp_ObterPromptPorContexto');
 
-    if (!promptResult.recordset || promptResult.recordset.length === 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'Prompt de identificação não encontrado'
-      }, { status: 500 });
-    }
-
     // Processar prompt com variáveis
-    let promptProcessado = promptResult.recordset[0].ConteudoPrompt;
-    promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoEmpresarial);
-    promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteVeiculo);
-    promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloVeiculo);
-    promptProcessado = promptProcessado.replace(/\{\{mensagem\}\}/g, mensagem);
-    promptProcessado = promptProcessado.replace(/\{\{nome_cliente\}\}/g, nomeCliente);
+    let promptProcessado = '';
+    
+    if (!promptResult.recordset || promptResult.recordset.length === 0) {
+      console.warn('⚠️  Prompt de identificação não encontrado, usando prompt padrão');
+      promptProcessado = `Você é um assistente especializado em peças automotivas para ${grupoEmpresarial}.
+Analise o problema descrito pelo cliente ${nomeCliente} sobre o veículo ${fabricanteVeiculo} ${modeloVeiculo}.
+Identifique as peças necessárias e forneça um diagnóstico detalhado.
+
+Problema: ${mensagem}`;
+    } else {
+      promptProcessado = promptResult.recordset[0].ConteudoPrompt || '';
+      promptProcessado = promptProcessado.replace(/\{\{grupo_empresarial\}\}/g, grupoEmpresarial);
+      promptProcessado = promptProcessado.replace(/\{\{fabricante_veiculo\}\}/g, fabricanteVeiculo);
+      promptProcessado = promptProcessado.replace(/\{\{modelo_veiculo\}\}/g, modeloVeiculo);
+      promptProcessado = promptProcessado.replace(/\{\{mensagem\}\}/g, mensagem);
+      promptProcessado = promptProcessado.replace(/\{\{nome_cliente\}\}/g, nomeCliente);
+    }
+    
+    // Garantir que o prompt não está vazio
+    if (!promptProcessado || promptProcessado.trim() === '') {
+      promptProcessado = `Analise o problema: "${mensagem}" para o veículo ${fabricanteVeiculo} ${modeloVeiculo}`;
+    }
 
     // Enviar para IA
     const inicioTempo = Date.now();
@@ -52,12 +61,13 @@ export async function POST(request: Request) {
       await pool
         .request()
         .input('ConversaId', conversaId)
-        .input('MensagemCliente', mensagem)
-        .input('PromptEnviado', promptProcessado)
-        .input('RespostaIA', resultadoIA.response || null)
+        .input('TipoChamada', 'identificacao_pecas')
+        .input('MensagemCliente', mensagem || 'Mensagem não informada')
+        .input('PromptEnviado', promptProcessado || 'Prompt não disponível')
+        .input('RespostaRecebida', (resultadoIA.success && resultadoIA.response) ? resultadoIA.response : '')
+        .input('TempoResposta', tempoResposta)
         .input('Sucesso', resultadoIA.success ? 1 : 0)
         .input('MensagemErro', resultadoIA.error || null)
-        .input('TempoResposta', tempoResposta)
         .input('ModeloIA', 'gemini-pro')
         .execute('AIHT_sp_RegistrarChamadaIA');
     } catch (logError) {

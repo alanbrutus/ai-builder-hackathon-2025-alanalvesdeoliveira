@@ -92,7 +92,9 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
 
     // 4. Enviar para Gemini
     console.log('🤖 Enviando para Gemini...');
+    const inicioTempo = Date.now();
     const resultadoIA = await sendToGemini(promptCotacao, mensagemCliente);
+    const tempoResposta = Date.now() - inicioTempo;
 
     if (!resultadoIA.success) {
       console.error('❌ Erro na resposta da IA:', resultadoIA.error);
@@ -108,12 +110,15 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
     await pool
       .request()
       .input('ConversaId', conversaId)
-      .input('MensagemCliente', mensagemCliente)
-      .input('PromptEnviado', promptCotacao)
-      .input('RespostaIA', resultadoIA.response)
-      .input('Sucesso', true)
-      .input('TempoResposta', 0)
-      .execute('AIHT_sp_RegistrarLogChamadaIA');
+      .input('TipoChamada', 'cotacao')
+      .input('MensagemCliente', mensagemCliente || 'Mensagem não informada')
+      .input('PromptEnviado', promptCotacao || 'Prompt não disponível')
+      .input('RespostaRecebida', resultadoIA.response || '')
+      .input('TempoResposta', tempoResposta)
+      .input('Sucesso', resultadoIA.success ? 1 : 0)
+      .input('MensagemErro', resultadoIA.error || null)
+      .input('ModeloIA', 'gemini-pro')
+      .execute('AIHT_sp_RegistrarChamadaIA');
 
     return NextResponse.json({
       success: true,
