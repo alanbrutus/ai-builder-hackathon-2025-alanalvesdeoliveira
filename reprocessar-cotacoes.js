@@ -86,7 +86,11 @@ async function reprocessarCotacoes() {
         FROM [AI_Builder_Hackthon].[dbo].[AIHT_PalavrasCotacao] 
         WHERE Ativo = 1
       )
-      AND l.PromptEnviado LIKE 'Você está finalizando%'
+      AND (
+        l.PromptEnviado LIKE 'Você está finalizando%'
+        OR l.PromptEnviado LIKE 'Preciso que realize um process%'
+        OR l.TipoChamada = 'finalizar-atendimento'
+      )
       ORDER BY l.ConversaId, l.DataChamada
     `);
 
