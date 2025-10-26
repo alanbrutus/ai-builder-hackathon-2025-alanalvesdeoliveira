@@ -1,0 +1,13 @@
+-- Verificar estrutura da tabela AIHT_Conversas
+USE AI_Builder_Hackthon;
+GO
+
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'AIHT_Conversas'
+ORDER BY ORDINAL_POSITION;
+
+GO
