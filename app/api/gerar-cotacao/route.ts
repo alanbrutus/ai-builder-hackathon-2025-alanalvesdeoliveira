@@ -1,6 +1,195 @@
 import { NextResponse } from 'next/server';
 import { getConnection } from '@/lib/db';
 import { sendToGemini } from '@/lib/gemini';
+import sql from 'mssql';
+
+/**
+ * Parseia a resposta da IA e salva as cotações no banco de dados
+ */
+async function parsearESalvarCotacoes(
+  respostaIA: string,
+  pecas: any[],
+  conversaId: number,
+  pool: sql.ConnectionPool
+): Promise<number> {
+  let totalSalvas = 0;
+
+  try {
+    // Parsear resposta da IA para extrair cotações
+    const linhas = respostaIA.split('\n');
+    let cotacaoAtual: any = {};
+    let dentroDeSecaoPeca = false;
+    let nomePecaAtual = '';
+
+    for (let i = 0; i < linhas.length; i++) {
+      const linha = linhas[i].trim();
+
+      // Detectar início de seção de peça (ex: "### 1. Bieleta da Barra Estabilizadora")
+      if (linha.match(/^###\s+\d+\.\s+(.+)/)) {
+        // Salvar cotação anterior se existir
+        if (cotacaoAtual.nomePeca) {
+          await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
+          totalSalvas++;
+        }
+        
+        const match = linha.match(/^###\s+\d+\.\s+(.+)/);
+        nomePecaAtual = match ? match[1].trim() : '';
+        dentroDeSecaoPeca = true;
+        cotacaoAtual = { nomePeca: nomePecaAtual };
+        continue;
+      }
+
+      if (!dentroDeSecaoPeca) continue;
+
+      // Detectar tipo de cotação
+      if (linha.includes('**🛒 Opções e-Commerce:**') || linha.includes('Opções e-Commerce')) {
+        if (cotacaoAtual.tipoCotacao) {
+          await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
+          totalSalvas++;
+        }
+        cotacaoAtual = { nomePeca: nomePecaAtual, tipoCotacao: 'E-Commerce' };
+      } else if (linha.includes('**📍 Opções Loja Física') || linha.includes('Opções Loja Física')) {
+        if (cotacaoAtual.tipoCotacao) {
+          await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
+          totalSalvas++;
+        }
+        cotacaoAtual = { nomePeca: nomePecaAtual, tipoCotacao: 'Loja Física' };
+      }
+
+      // Extrair link (e-commerce)
+      if (linha.includes('http://') || linha.includes('https://')) {
+        const linkMatch = linha.match(/(https?:\/\/[^\s\)]+)/);
+        if (linkMatch && !cotacaoAtual.link) {
+          cotacaoAtual.link = linkMatch[1];
+        }
+      }
+
+      // Extrair endereço (loja física)
+      if (linha.includes('Endereço:') || linha.match(/[A-Z][a-z]+\s+[A-Z][a-z]+.*\d+.*-.*,/)) {
+        const enderecoMatch = linha.match(/:\s*(.+)/);
+        if (enderecoMatch) {
+          cotacaoAtual.endereco = enderecoMatch[1].trim();
+        } else if (!cotacaoAtual.endereco && linha.match(/[A-Z][a-z]+.*\d+/)) {
+          cotacaoAtual.endereco = linha.replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
+        }
+      }
+
+      // Extrair nome da loja
+      if (linha.includes('**') && linha.includes(':') && cotacaoAtual.tipoCotacao === 'Loja Física') {
+        const lojaMatch = linha.match(/\*\*([^*:]+)\*\*:/);
+        if (lojaMatch && !cotacaoAtual.nomeLoja) {
+          cotacaoAtual.nomeLoja = lojaMatch[1].trim();
+        }
+      }
+
+      // Extrair preço
+      if (linha.includes('R$') || linha.includes('Preço:')) {
+        // Faixa de preço: R$ 150,00 - R$ 200,00
+        const faixaMatch = linha.match(/R\$\s*([\d.,]+)\s*-\s*R\$\s*([\d.,]+)/);
+        if (faixaMatch) {
+          cotacaoAtual.precoMinimo = parseFloat(faixaMatch[1].replace('.', '').replace(',', '.'));
+          cotacaoAtual.precoMaximo = parseFloat(faixaMatch[2].replace('.', '').replace(',', '.'));
+        } else {
+          // Preço único: R$ 189,90
+          const unicoMatch = linha.match(/R\$\s*([\d.,]+)/);
+          if (unicoMatch && !cotacaoAtual.preco) {
+            cotacaoAtual.preco = parseFloat(unicoMatch[1].replace('.', '').replace(',', '.'));
+          }
+        }
+      }
+
+      // Extrair condições de pagamento
+      if (linha.includes('Condições de Pagamento:') || linha.includes('Pagamento:')) {
+        const pagamentoMatch = linha.match(/Pagamento:\s*\*\*\s*(.+)/);
+        if (pagamentoMatch) {
+          cotacaoAtual.condicoesPagamento = pagamentoMatch[1].replace(/\*\*/g, '').trim();
+        }
+      }
+
+      // Extrair disponibilidade
+      if (linha.includes('Disponibilidade:')) {
+        const dispMatch = linha.match(/Disponibilidade:\s*\*\*\s*(.+)/);
+        if (dispMatch) {
+          cotacaoAtual.disponibilidade = dispMatch[1].replace(/\*\*/g, '').trim();
+        }
+      }
+
+      // Extrair prazo de entrega
+      if (linha.includes('Prazo de Entrega:')) {
+        const prazoMatch = linha.match(/Prazo de Entrega:\s*\*\*\s*(.+)/);
+        if (prazoMatch) {
+          cotacaoAtual.prazoEntrega = prazoMatch[1].replace(/\*\*/g, '').trim();
+        }
+      }
+    }
+
+    // Salvar última cotação
+    if (cotacaoAtual.nomePeca && cotacaoAtual.tipoCotacao) {
+      await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
+      totalSalvas++;
+    }
+
+  } catch (error) {
+    console.error('❌ Erro ao parsear cotações:', error);
+  }
+
+  return totalSalvas;
+}
+
+/**
+ * Salva uma cotação individual no banco de dados
+ */
+async function salvarCotacao(
+  cotacao: any,
+  pecas: any[],
+  conversaId: number,
+  pool: sql.ConnectionPool
+): Promise<void> {
+  try {
+    // Encontrar peça correspondente
+    const peca = pecas.find(p => 
+      p.NomePeca.toLowerCase().includes(cotacao.nomePeca.toLowerCase()) ||
+      cotacao.nomePeca.toLowerCase().includes(p.NomePeca.toLowerCase())
+    );
+
+    if (!peca) {
+      console.warn(`⚠️  Peça não encontrada para cotação: ${cotacao.nomePeca}`);
+      return;
+    }
+
+    // Validar tipo de cotação
+    if (!cotacao.tipoCotacao || !['E-Commerce', 'Loja Física'].includes(cotacao.tipoCotacao)) {
+      console.warn(`⚠️  Tipo de cotação inválido: ${cotacao.tipoCotacao}`);
+      return;
+    }
+
+    // Registrar cotação
+    await pool
+      .request()
+      .input('ConversaId', conversaId)
+      .input('ProblemaId', peca.ProblemaId || null)
+      .input('PecaIdentificadaId', peca.Id)
+      .input('NomePeca', cotacao.nomePeca)
+      .input('TipoCotacao', cotacao.tipoCotacao)
+      .input('Link', cotacao.link || null)
+      .input('Endereco', cotacao.endereco || null)
+      .input('NomeLoja', cotacao.nomeLoja || null)
+      .input('Telefone', cotacao.telefone || null)
+      .input('Preco', cotacao.preco || null)
+      .input('PrecoMinimo', cotacao.precoMinimo || null)
+      .input('PrecoMaximo', cotacao.precoMaximo || null)
+      .input('CondicoesPagamento', cotacao.condicoesPagamento || null)
+      .input('Observacoes', cotacao.observacoes || null)
+      .input('Disponibilidade', cotacao.disponibilidade || null)
+      .input('PrazoEntrega', cotacao.prazoEntrega || null)
+      .input('EstadoPeca', cotacao.estadoPeca || null)
+      .execute('AIHT_sp_RegistrarCotacao');
+
+    console.log(`  ✅ Cotação salva: ${cotacao.nomePeca} (${cotacao.tipoCotacao})`);
+  } catch (error) {
+    console.error(`  ❌ Erro ao salvar cotação ${cotacao.nomePeca}:`, error);
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -120,12 +309,23 @@ Para cada peça, forneça: nome, tipo (e-Commerce/Loja Física), link/endereço,
       .input('ModeloIA', 'gemini-pro')
       .execute('AIHT_sp_RegistrarChamadaIA');
 
+    // 6. Parsear e salvar cotações no banco de dados
+    console.log('💾 Parseando e salvando cotações no banco...');
+    const cotacoesSalvas = await parsearESalvarCotacoes(
+      resultadoIA.response || '',
+      pecas,
+      conversaId,
+      pool
+    );
+    console.log(`✅ ${cotacoesSalvas} cotações salvas no banco de dados`);
+
     return NextResponse.json({
       success: true,
       intencaoCotacao: true,
       cotacao: resultadoIA.response,
       pecas: pecas,
-      palavrasEncontradas: palavrasEncontradas
+      palavrasEncontradas: palavrasEncontradas,
+      cotacoesSalvas: cotacoesSalvas
     });
 
   } catch (error: any) {
