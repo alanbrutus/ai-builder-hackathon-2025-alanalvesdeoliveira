@@ -66,22 +66,25 @@ async function reprocessarCotacoes() {
     // 1. Buscar logs incorretos
     console.log('🔍 Buscando logs finalizados incorretamente...');
     const logsIncorretos = await pool.request().query(`
-      SELECT DISTINCT
+      SELECT 
         l.Id AS LogId,
         l.ConversaId,
         l.MensagemCliente,
+        l.TipoChamada,
         c.NomeCliente,
         m.Nome AS ModeloVeiculo,
         marc.Nome AS MarcaVeiculo
       FROM [AI_Builder_Hackthon].[dbo].[AIHT_LogChamadasIA] l
-      INNER JOIN [AI_Builder_Hackthon].[dbo].[AIHT_PalavrasCotacao] p 
-        ON UPPER(LTRIM(RTRIM(l.MensagemCliente))) = p.Palavra
       INNER JOIN [AI_Builder_Hackthon].[dbo].[AIHT_Conversas] c ON l.ConversaId = c.Id
       LEFT JOIN [AI_Builder_Hackthon].[dbo].[AIHT_Modelos] m ON c.ModeloId = m.Id
       LEFT JOIN [AI_Builder_Hackthon].[dbo].[AIHT_Marcas] marc ON m.MarcaId = marc.Id
-      WHERE p.Ativo = 1
+      WHERE UPPER(LTRIM(RTRIM(l.MensagemCliente))) IN (
+        SELECT [Palavra] 
+        FROM [AI_Builder_Hackthon].[dbo].[AIHT_PalavrasCotacao] 
+        WHERE Ativo = 1
+      )
       AND l.PromptEnviado LIKE 'Você está finalizando%'
-      ORDER BY l.ConversaId
+      ORDER BY l.ConversaId, l.DataChamada
     `);
 
     const logs = logsIncorretos.recordset;
@@ -163,19 +166,28 @@ async function reprocessarCotacoes() {
         console.log(`   ✅ Cotação gerada em ${tempoResposta}ms`);
         console.log(`   📏 Tamanho da resposta: ${cotacao.length} caracteres`);
 
-        // 3.4. Registrar log
-        console.log('   💾 Registrando log da chamada...');
+        // 3.4. ATUALIZAR log existente
+        console.log('   💾 Atualizando log existente...');
         await pool.request()
-          .input('ConversaId', log.ConversaId)
-          .input('TipoChamada', 'gerar-cotacao-reprocessamento')
-          .input('MensagemCliente', log.MensagemCliente)
+          .input('LogId', log.LogId)
           .input('PromptEnviado', promptCotacao)
           .input('RespostaRecebida', cotacao)
           .input('TempoResposta', tempoResposta)
-          .input('Sucesso', 1)
-          .input('MensagemErro', null)
-          .input('ModeloIA', 'gemini-pro')
-          .execute('AIHT_sp_RegistrarChamadaIA');
+          .input('TipoChamada', 'gerar-cotacao')
+          .query(`
+            UPDATE [AI_Builder_Hackthon].[dbo].[AIHT_LogChamadasIA]
+            SET 
+              TipoChamada = @TipoChamada,
+              PromptEnviado = @PromptEnviado,
+              RespostaRecebida = @RespostaRecebida,
+              TempoResposta = @TempoResposta,
+              Sucesso = 1,
+              MensagemErro = NULL,
+              ModeloIA = 'gemini-pro',
+              DataChamada = GETDATE()
+            WHERE Id = @LogId
+          `);
+        console.log('   ✅ Log atualizado!');
 
         // 3.5. Parsear e salvar cotações
         console.log('   📦 Parseando e salvando cotações...');
