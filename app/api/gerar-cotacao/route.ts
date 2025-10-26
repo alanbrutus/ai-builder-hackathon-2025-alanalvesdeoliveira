@@ -17,6 +17,8 @@ async function parsearESalvarCotacoes(
   try {
     console.log('🔍 Iniciando parser de cotações...');
     console.log(`   Total de peças identificadas: ${pecas.length}`);
+    console.log(`   📋 Peças identificadas no banco:`);
+    pecas.forEach(p => console.log(`      - ${p.NomePeca} (ID: ${p.Id})`));
     
     // Parsear resposta da IA para extrair cotações
     const linhas = respostaIA.split('\n');
@@ -31,7 +33,9 @@ async function parsearESalvarCotacoes(
       const linha = linhas[i].trim();
 
       // Detectar início de seção de peça (ex: "### 1. Bieleta da Barra Estabilizadora")
-      if (linha.match(/^###\s+\d+\.\s+(.+)/)) {
+      // Ou: "#### **1. Sensor de temperatura do motor (ECT)**"
+      const secaoPecaMatch = linha.match(/^####+?\s*\*?\*?\s*\d+\.\s+(.+)/);
+      if (secaoPecaMatch) {
         // Salvar cotação anterior se existir
         if (cotacaoAtual.nomePeca && cotacaoAtual.tipoCotacao) {
           console.log(`   📦 Salvando cotação: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
@@ -39,12 +43,30 @@ async function parsearESalvarCotacoes(
           totalSalvas++;
         }
         
-        const match = linha.match(/^###\s+\d+\.\s+(.+)/);
-        nomePecaAtual = match ? match[1].trim() : '';
+        nomePecaAtual = secaoPecaMatch[1].replace(/\*/g, '').trim();
         dentroDeSecaoPeca = true;
         cotacaoAtual = { nomePeca: nomePecaAtual };
         cotacoesEncontradas++;
-        console.log(`   🔧 Nova peça detectada: ${nomePecaAtual}`);
+        console.log(`   🔧 Nova peça detectada na resposta: "${nomePecaAtual}"`);
+        
+        // Tentar fazer matching com peças do banco
+        const pecaEncontrada = pecas.find(p => {
+          const nomeBanco = p.NomePeca.toLowerCase();
+          const nomeResposta = nomePecaAtual.toLowerCase();
+          return nomeBanco.includes(nomeResposta) || 
+                 nomeResposta.includes(nomeBanco) ||
+                 // Matching por palavras-chave principais
+                 nomeBanco.split(' ').some((palavra: string) => 
+                   palavra.length > 3 && nomeResposta.includes(palavra)
+                 );
+        });
+        
+        if (pecaEncontrada) {
+          console.log(`   ✓ Match encontrado com: "${pecaEncontrada.NomePeca}" (ID: ${pecaEncontrada.Id})`);
+        } else {
+          console.warn(`   ⚠️  Nenhum match direto encontrado para: "${nomePecaAtual}"`);
+        }
+        
         continue;
       }
 
@@ -335,19 +357,30 @@ async function salvarCotacao(
       .input('EstadoPeca', cotacao.estadoPeca || null)
       .execute('AIHT_sp_RegistrarCotacao');
 
+    console.log(`  🔄 Stored procedure executada, verificando resultado...`);
+    console.log(`     - Recordsets: ${result.recordsets?.length || 0}`);
+    console.log(`     - Recordset: ${result.recordset?.length || 0} registros`);
+    console.log(`     - RowsAffected: ${result.rowsAffected}`);
+    
     if (result.recordset && result.recordset.length > 0) {
       const cotacaoSalva = result.recordset[0];
       console.log(`  ✅ Cotação salva com sucesso! ID: ${cotacaoSalva.Id}`);
+      console.log(`     DataCotacao: ${cotacaoSalva.DataCotacao}`);
     } else {
       console.warn(`  ⚠️  Stored procedure executada mas sem retorno`);
+      console.warn(`     Isso pode indicar que a SP não está retornando o SELECT final`);
     }
   } catch (error: any) {
     console.error(`  ❌ Erro ao salvar cotação ${cotacao.nomePeca}:`);
     console.error(`     Mensagem: ${error.message}`);
-    console.error(`     Stack: ${error.stack}`);
+    console.error(`     Código: ${error.code}`);
+    console.error(`     Número: ${error.number}`);
     if (error.originalError) {
-      console.error(`     Erro SQL: ${error.originalError.message}`);
+      console.error(`     Erro SQL Original: ${error.originalError.message}`);
+      console.error(`     SQL State: ${error.originalError.info?.sqlstate}`);
     }
+    console.error(`     Stack completo: ${error.stack}`);
+    throw error; // Re-lançar erro para ver no resumo
   }
 }
 

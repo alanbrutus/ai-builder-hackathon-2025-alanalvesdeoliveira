@@ -1,0 +1,33 @@
+debug: Adicionar logs ultra-detalhados e scripts de verificação SQL
+
+DESCOBERTA IMPORTANTE:
+- Stored procedure FUNCIONA corretamente
+- Script 45_verificar_estado_rapido.sql confirmou inserção
+- Link "https://teste.com" foi gravado com sucesso
+- CONCLUSÃO: Problema está no PARSER, não na SP
+
+MELHORIAS:
+
+1. LOGS ULTRA-DETALHADOS:
+   - Resultado completo da SP (recordsets, rowsAffected)
+   - Dados de cada cotação salva (ID, DataCotacao)
+   - Re-lançar erros para capturar falhas
+   - Código e número de erro SQL
+   - SQL State para diagnóstico
+
+2. SCRIPTS DE VERIFICAÇÃO:
+   - SQL/45_verificar_estado_rapido.sql
+     * Contadores rápidos
+     * Últimas conversas e peças
+     * Teste de inserção manual
+     * Verificação de SP
+   
+   - debug_cotacoes.ps1
+     * Script PowerShell para executar debug
+     * Formatação colorida
+
+3. PRÓXIMOS PASSOS:
+   - Reiniciar servidor Next.js
+   - Fazer nova solicitação de cotação
+   - COPIAR LOGS COMPLETOS do console
+   - Identificar onde o parser está falhando
