@@ -28,13 +28,23 @@ async function parsearESalvarCotacoes(
     let cotacoesEncontradas = 0;
 
     console.log(`   Total de linhas na resposta: ${linhas.length}`);
+    console.log(`\n🔍 INICIANDO ANÁLISE LINHA POR LINHA:\n`);
 
     for (let i = 0; i < linhas.length; i++) {
       const linha = linhas[i].trim();
+      
+      // Log detalhado de linhas importantes
+      if (linha.includes('##') || linha.includes('??') || linha.includes('Tipo:')) {
+        console.log(`   Linha ${i}: "${linha.substring(0, 100)}..."`);
+      }
 
-      // Detectar início de seção de peça (ex: "### 1. Bieleta da Barra Estabilizadora")
-      // Ou: "#### **1. Sensor de temperatura do motor (ECT)**"
-      const secaoPecaMatch = linha.match(/^####+?\s*\*?\*?\s*\d+\.\s+(.+)/);
+      // Detectar início de seção de peça
+      // Formato 1: "### 1. Bieleta da Barra Estabilizadora"
+      // Formato 2: "#### **1. Sensor de temperatura do motor (ECT)**"
+      // Formato 3: "#### ?? **Nome da Peça:** Coxins do Motor"
+      const secaoPecaMatch = linha.match(/^####+?\s*\*?\*?\s*\d+\.\s+(.+)/) ||
+                             linha.match(/^####+?\s*\?\?\s*\*\*\s*Nome da Peça:\s*\*\*\s*(.+)/i);
+      
       if (secaoPecaMatch) {
         // Salvar cotação anterior se existir
         if (cotacaoAtual.nomePeca && cotacaoAtual.tipoCotacao) {
@@ -86,8 +96,8 @@ async function parsearESalvarCotacoes(
       
       const isEcommerce = 
         // Formato solicitado: ?? **Tipo:** e-Commerce
-        linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
-        linha.match(/\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
+        linha.match(/^\?\?\s*\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
+        linha.match(/^\*\*\s*Tipo:\s*\*\*\s*e-Commerce/i) ||
         // Formato que a IA retorna: * **E-commerce - Opção
         linha.match(/^\s*\*\s*\*\*E-commerce\s*-\s*Opção/i) ||
         linha.match(/^\s*\*\s*\*\*e-Commerce\s*-\s*Opção/i) ||
@@ -97,8 +107,8 @@ async function parsearESalvarCotacoes(
       
       const isLojaFisica = 
         // Formato solicitado: ?? **Tipo:** Loja Física
-        linha.match(/\?\?\s*\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
-        linha.match(/\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
+        linha.match(/^\?\?\s*\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
+        linha.match(/^\*\*\s*Tipo:\s*\*\*\s*Loja\s+F[ií]sica/i) ||
         // Formato que a IA retorna: * **Loja Física - Opção
         linha.match(/^\s*\*\s*\*\*Loja\s+F[ií]sica\s*-\s*Opção/i) ||
         // Outros formatos
@@ -106,6 +116,7 @@ async function parsearESalvarCotacoes(
         linha.match(/Opções\s+Loja\s+F[ií]sica/i);
 
       if (isEcommerce) {
+        console.log(`   ✓ DETECTADO: E-Commerce na linha ${i}`);
         if (cotacaoAtual.tipoCotacao) {
           console.log(`   💾 Salvando cotação anterior antes de nova: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
@@ -114,6 +125,7 @@ async function parsearESalvarCotacoes(
         cotacaoAtual = { nomePeca: nomePecaAtual, tipoCotacao: 'E-Commerce' };
         console.log(`   🛒 Tipo detectado: E-Commerce para ${nomePecaAtual}`);
       } else if (isLojaFisica) {
+        console.log(`   ✓ DETECTADO: Loja Física na linha ${i}`);
         if (cotacaoAtual.tipoCotacao) {
           console.log(`   💾 Salvando cotação anterior antes de nova: ${cotacaoAtual.nomePeca} (${cotacaoAtual.tipoCotacao})`);
           await salvarCotacao(cotacaoAtual, pecas, conversaId, pool);
