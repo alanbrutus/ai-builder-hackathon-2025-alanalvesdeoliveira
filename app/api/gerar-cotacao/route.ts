@@ -42,7 +42,8 @@ async function parsearESalvarCotacoes(
       // Formato 1: "### 1. Bieleta da Barra Estabilizadora"
       // Formato 2: "#### **1. Sensor de temperatura do motor (ECT)**"
       // Formato 3: "#### ?? **Nome da Peça:** Coxins do Motor"
-      const secaoPecaMatch = linha.match(/^####+?\s*\*?\*?\s*\d+\.\s+(.+)/) ||
+      const secaoPecaMatch = linha.match(/^###\s+\d+\.\s+(.+)/) ||
+                             linha.match(/^####\s+\*\*\d+\.\s+(.+)/) ||
                              linha.match(/^####+?\s*\?\?\s*\*\*\s*Nome da Peça:\s*\*\*\s*(.+)/i);
       
       if (secaoPecaMatch) {
