@@ -53,6 +53,7 @@ export default function ChatPage() {
   const [modelos, setModelos] = useState<Modelo[]>([]);
   
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const inputFormRef = useRef<HTMLFormElement | null>(null);
 
   // Carregar grupos ao montar
   useEffect(() => {
@@ -79,9 +80,17 @@ export default function ChatPage() {
     }
   }, [fabricanteId]);
 
+  // Rolar para o final das mensagens quando novas mensagens chegarem
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Rolar para o topo (input) quando loading terminar
+  useEffect(() => {
+    if (!loading && chatStarted && inputFormRef.current) {
+      inputFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [loading, chatStarted]);
 
   const loadGrupos = async () => {
     try {
@@ -428,7 +437,7 @@ export default function ChatPage() {
 
         {/* Input de Mensagem - Agora no topo */}
         {chatStarted && (
-          <form onSubmit={handleSubmit} className="border-b border-gray-200 bg-white px-2 py-2">
+          <form ref={inputFormRef} onSubmit={handleSubmit} className="border-b border-gray-200 bg-white px-2 py-2">
             <div className="max-w-4xl mx-auto flex items-center gap-1.5">
               <input
                 value={input}
